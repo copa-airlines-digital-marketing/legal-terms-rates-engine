@@ -1,0 +1,543 @@
+@font-face {
+  font-family: "Gilroy";
+  src: url("https://cm-marketing.directus.app/assets/1995f55d-4c20-43e9-bc2e-ef3b529a560e")
+    format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("https://cm-marketing.directus.app/assets/7d6f602f-5c6f-4c09-8e70-1feb9ab50f49")
+    format("woff");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("https://cm-marketing.directus.app/assets/40e07d67-0561-4423-8cd7-6d6b4f5286b6")
+    format("woff");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gilroy";
+  src: url("https://cm-marketing.directus.app/assets/b83d2dc4-5a3d-4517-b367-fde7b500f806")
+    format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ================================================================
+   RESET & BASE
+   ================================================================ */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    "Gilroy",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  background: #f0f4f8;
+  color: #1a202c;
+}
+
+/* ================================================================
+   HEADER
+   ================================================================ */
+.header {
+  background: #003087;
+  color: #fff;
+  padding: 14px 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-logo {
+  height: 40px;
+  width: auto;
+  flex-shrink: 0;
+}
+
+.header-text h1 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.header-text p {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-top: 2px;
+  font-weight: 400;
+}
+
+/* ================================================================
+   LAYOUT
+   ================================================================ */
+.layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 20px;
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* ================================================================
+   LEFT PANEL — CONFIG
+   ================================================================ */
+.cfg {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  height: fit-content;
+}
+
+.cfg-h {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.cfg-h h2 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #374151;
+}
+
+.cfg-b {
+  padding: 16px;
+}
+
+/* ================================================================
+   STEPS
+   ================================================================ */
+.step {
+  margin-bottom: 16px;
+}
+
+.slbl {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.sn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #003087;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.slbl span {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+/* ================================================================
+   FORM ELEMENTS
+   ================================================================ */
+label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+input[type="text"],
+input[type="date"] {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  font-size: 13px;
+  font-family:
+    "Gilroy",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: #1a202c;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+input:focus {
+  border-color: #003087;
+  box-shadow: 0 0 0 3px rgba(0, 48, 135, 0.08);
+}
+
+.hint {
+  font-size: 10px;
+  color: #9ca3af;
+  margin-top: 3px;
+}
+
+.row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* ================================================================
+   UPLOAD ZONE
+   ================================================================ */
+.upload {
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 18px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #f8fafc;
+}
+
+.upload:hover,
+.upload.drag {
+  border-color: #003087;
+  background: #eff6ff;
+}
+
+.upload.ok {
+  border-color: #10b981;
+  background: #f0fdf4;
+  border-style: solid;
+}
+
+.upload .icon {
+  font-size: 24px;
+  margin-bottom: 5px;
+}
+
+.upload p {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.fname {
+  font-size: 11px;
+  font-weight: 600;
+  color: #10b981;
+  margin-top: 5px;
+  display: none;
+}
+
+input[type="file"] {
+  display: none;
+}
+
+/* ================================================================
+   DIVIDER
+   ================================================================ */
+.div {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 14px 0;
+}
+
+/* ================================================================
+   ROUTES & RATES PREVIEW
+   ================================================================ */
+.routes-wrap {
+  max-height: 100px;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+
+.rt {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 5px;
+  padding: 1px 7px;
+  font-size: 10px;
+  color: #1d4ed8;
+  margin: 2px;
+}
+
+.rb {
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.rates-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+  margin-top: 5px;
+}
+
+.rc {
+  background: #f1f5f9;
+  border-radius: 5px;
+  padding: 4px 6px;
+}
+
+.rc .cur {
+  font-size: 10px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.rc .val {
+  font-size: 10px;
+  color: #6b7280;
+}
+
+/* ================================================================
+   GENERATE BUTTON
+   ================================================================ */
+.btn-gen {
+  width: 100%;
+  padding: 10px;
+  border-radius: 9px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  font-family:
+    "Gilroy",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  background: #003087;
+  color: #fff;
+  transition: background 0.15s;
+}
+
+.btn-gen:hover:not(:disabled) {
+  background: #00256b;
+}
+
+.btn-gen:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* ================================================================
+   ALERTS
+   ================================================================ */
+.alert {
+  padding: 8px 12px;
+  border-radius: 7px;
+  font-size: 11px;
+  margin-top: 7px;
+}
+
+.alert-s {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.alert-e {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+/* ================================================================
+   RIGHT PANEL — LANGUAGE CARDS
+   ================================================================ */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.placeholder {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 80px 20px;
+  text-align: center;
+  color: #9ca3af;
+}
+
+.placeholder .bi {
+  font-size: 44px;
+  margin-bottom: 12px;
+}
+
+.placeholder p {
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.lang-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  display: none;
+}
+
+.lang-card.visible {
+  display: block;
+}
+
+.lc-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lc-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lc-title .flag {
+  font-size: 20px;
+}
+
+.lc-title .name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.lc-title .meta {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-left: 6px;
+}
+
+.lc-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-copy,
+.btn-docx {
+  padding: 6px 14px;
+  border-radius: 7px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  font-family:
+    "Gilroy",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  transition: all 0.15s;
+}
+
+.btn-copy {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.btn-copy:hover {
+  background: #dbeafe;
+}
+
+.btn-copy.copied {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.btn-docx {
+  background: #003087;
+  color: #fff;
+}
+
+.btn-docx:hover {
+  background: #00256b;
+}
+
+.btn-docx:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.btn-docx.loading {
+  background: #6b7280;
+}
+
+.lc-body {
+  padding: 12px;
+}
+
+.lc-body textarea {
+  width: 100%;
+  height: 220px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-family: "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #374151;
+  background: #f8fafc;
+  resize: vertical;
+  outline: none;
+}
+
+.lc-body textarea:focus {
+  border-color: #003087;
+}
+
+/* ================================================================
+   FOOTER
+   ================================================================ */
+.footer {
+  background: #003087;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 98px;
+  margin-top: 12px;
+}
+
+.footer-logo {
+  height: 44px;
+  width: auto;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+.footer-logo:hover {
+  opacity: 1;
+}

@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Copa T&C Generator</title>
+
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="https://cm-marketing.directus.app/assets/b2ab5bd6-7bbd-4bf9-af7f-67d231829fb4"
+    />
+
+    <link rel="stylesheet" href="style.css" />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  </head>
+  <body>
+    <!-- ============================================================
+     HEADER
+     ============================================================ -->
+    <header class="header">
+      <img
+        class="header-logo"
+        src="https://cm-marketing.directus.app/assets/eea750ff-7448-4506-8c8b-c754b8a7e436"
+        alt="Copa Airlines"
+      />
+      <div class="header-text">
+        <h1>T&amp;C Generator — Copa Airlines</h1>
+        <p>
+          Genera HTML para AirTRFX y descarga DOCX en Español · English ·
+          Português
+        </p>
+      </div>
+    </header>
+
+    <!-- ============================================================
+     MAIN LAYOUT
+     ============================================================ -->
+    <div class="layout">
+      <!-- ==================== LEFT: CONFIG ==================== -->
+      <div class="cfg">
+        <div class="cfg-h"><h2>⚙️ Configuración</h2></div>
+        <div class="cfg-b">
+          <!-- Step 1: Upload Excel -->
+          <div class="step">
+            <div class="slbl">
+              <div class="sn">1</div>
+              <span>Excel de Tarifas</span>
+            </div>
+            <div
+              class="upload"
+              id="uz"
+              onclick="document.getElementById('fi').click()"
+            >
+              <div class="icon">📊</div>
+              <p>Clic o arrastra el archivo</p>
+              <p style="font-size: 10px; color: #9ca3af; margin-top: 2px">
+                Sheet 1: Tarifas · Sheet 2: Tasas de cambio
+              </p>
+              <div class="fname" id="fname"></div>
+            </div>
+            <input
+              type="file"
+              id="fi"
+              accept=".xlsx,.xls"
+              onchange="handleFile(event)"
+            />
+            <div id="lstatus"></div>
+          </div>
+
+          <div class="div"></div>
+
+          <!-- Step 2: Campaign data -->
+          <div class="step">
+            <div class="slbl">
+              <div class="sn">2</div>
+              <span>Datos de la Campaña</span>
+            </div>
+            <div style="margin-bottom: 8px">
+              <label>Nombre de la campaña</label>
+              <input
+                type="text"
+                id="campName"
+                placeholder="ej: Destino del Mes Cancún"
+              />
+              <p class="hint">Título: Tarifas Promocionales | {nombre}</p>
+            </div>
+            <div class="row2">
+              <div>
+                <label>ID del div (anchor)</label>
+                <input
+                  type="text"
+                  id="divId"
+                  placeholder="domCUN"
+                  value="domCUN"
+                />
+              </div>
+              <div>
+                <label>ID para los archivos</label>
+                <input
+                  type="text"
+                  id="slug"
+                  placeholder="ViajaMejor"
+                  value="CUN"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="div"></div>
+
+          <!-- Step 3: Dates -->
+          <div class="step">
+            <div class="slbl">
+              <div class="sn">3</div>
+              <span>Vigencia de la Promoción</span>
+            </div>
+            <p class="hint" style="margin-bottom: 8px">
+              Se auto-completan del Excel (col X/Y/Z/AB). Puedes ajustar.
+            </p>
+            <div class="row2" style="margin-bottom: 7px">
+              <div>
+                <label>Primera fecha compra</label>
+                <input type="date" id="fp" />
+              </div>
+              <div>
+                <label>Última fecha compra</label>
+                <input type="date" id="lp" />
+              </div>
+            </div>
+            <div class="row2">
+              <div>
+                <label>Primera fecha vuelo</label>
+                <input type="date" id="ff" />
+              </div>
+              <div>
+                <label>Última fecha vuelo</label>
+                <input type="date" id="lf" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Routes preview (shown after file load) -->
+          <div id="routesSec" style="display: none">
+            <div class="div"></div>
+            <p style="font-size: 11px; font-weight: 600; color: #374151">
+              📍 Rutas
+              <span id="rCount" style="font-weight: 400; color: #9ca3af"></span>
+            </p>
+            <div class="routes-wrap" id="rTags"></div>
+          </div>
+
+          <!-- Rates preview (shown after file load) -->
+          <div id="ratesSec" style="display: none">
+            <div class="div"></div>
+            <p
+              style="
+                font-size: 11px;
+                font-weight: 600;
+                color: #374151;
+                margin-bottom: 5px;
+              "
+            >
+              💱 Tasas de cambio
+              <span
+                id="rDate"
+                style="font-weight: 400; color: #9ca3af; font-size: 10px"
+              ></span>
+            </p>
+            <div class="rates-grid" id="rList"></div>
+          </div>
+
+          <div class="div"></div>
+          <button class="btn-gen" id="genBtn" onclick="generateAll()" disabled>
+            ✨ Generar T&C
+          </button>
+        </div>
+      </div>
+      <!-- /cfg -->
+
+      <!-- ==================== RIGHT: LANGUAGE CARDS ==================== -->
+      <div class="cards" id="cardsArea">
+        <!-- Placeholder shown before generation -->
+        <div class="placeholder" id="ph">
+          <div class="bi">📝</div>
+          <p>
+            Sube el Excel, completa los datos<br />
+            y haz clic en <strong>Generar T&C</strong>.<br /><br />
+            <span style="font-size: 12px">
+              Se generará <strong>un solo T&C por campaña</strong><br />
+              con todas las rutas incluidas.
+            </span>
+          </p>
+        </div>
+
+        <!-- Español -->
+        <div class="lang-card" id="card-es">
+          <div class="lc-header">
+            <div class="lc-title">
+              <span class="flag">🇪🇸</span>
+              <span class="name">Español</span>
+              <span class="meta" id="meta-es"></span>
+            </div>
+            <div class="lc-actions">
+              <button class="btn-copy" id="cp-es" onclick="copyLang('es')">
+                📋 Copiar HTML
+              </button>
+              <button class="btn-docx" id="dl-es" onclick="downloadDOCX('es')">
+                📥 Descargar DOCX
+              </button>
+            </div>
+          </div>
+          <div class="lc-body">
+            <textarea id="out-es" readonly></textarea>
+          </div>
+        </div>
+
+        <!-- English -->
+        <div class="lang-card" id="card-en">
+          <div class="lc-header">
+            <div class="lc-title">
+              <span class="flag">🇺🇸</span>
+              <span class="name">English</span>
+              <span class="meta" id="meta-en"></span>
+            </div>
+            <div class="lc-actions">
+              <button class="btn-copy" id="cp-en" onclick="copyLang('en')">
+                📋 Copy HTML
+              </button>
+              <button class="btn-docx" id="dl-en" onclick="downloadDOCX('en')">
+                📥 Download DOCX
+              </button>
+            </div>
+          </div>
+          <div class="lc-body">
+            <textarea id="out-en" readonly></textarea>
+          </div>
+        </div>
+
+        <!-- Português -->
+        <div class="lang-card" id="card-pt">
+          <div class="lc-header">
+            <div class="lc-title">
+              <span class="flag">🇧🇷</span>
+              <span class="name">Português</span>
+              <span class="meta" id="meta-pt"></span>
+            </div>
+            <div class="lc-actions">
+              <button class="btn-copy" id="cp-pt" onclick="copyLang('pt')">
+                📋 Copiar HTML
+              </button>
+              <button class="btn-docx" id="dl-pt" onclick="downloadDOCX('pt')">
+                📥 Baixar DOCX
+              </button>
+            </div>
+          </div>
+          <div class="lc-body">
+            <textarea id="out-pt" readonly></textarea>
+          </div>
+        </div>
+      </div>
+      <!-- /cards -->
+    </div>
+    <!-- /layout -->
+
+    <footer class="footer">
+      <img
+        class="footer-logo"
+        src="https://cm-marketing.directus.app/assets/06cb3d00-8dd6-4f41-9f35-40f7d02ba0e3"
+        alt="Copa Marketing"
+      />
+    </footer>
+
+    <script src="functions.js"></script>
+  </body>
+</html>
