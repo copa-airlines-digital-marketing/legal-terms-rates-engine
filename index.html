@@ -28,17 +28,23 @@
         alt="Copa Airlines"
       />
       <div class="header-text">
-        <h1>T&amp;C Generator — Copa Airlines</h1>
-        <p>
-          Genera HTML para AirTRFX y descarga DOCX en Español · English ·
-          Português
-        </p>
+        <h1>Marketing Tools — Copa Airlines</h1>
+        <p>T&amp;C Generator · Tarifas Generator — HTML para AirTRFX</p>
       </div>
     </header>
 
     <!-- ============================================================
-     MAIN LAYOUT
+     TAB NAV
      ============================================================ -->
+    <nav class="tabs-nav">
+      <button class="tab-btn active" id="tab-btn-tc" onclick="switchTab('tc')">📋 T&amp;C Generator</button>
+      <button class="tab-btn" id="tab-btn-fares" onclick="switchTab('fares')">✈️ Tarifas</button>
+    </nav>
+
+    <!-- ============================================================
+     TAB: T&C GENERATOR
+     ============================================================ -->
+    <div id="tab-tc" class="tab-panel">
     <div class="layout">
       <!-- ==================== LEFT: CONFIG ==================== -->
       <div class="cfg">
@@ -265,6 +271,150 @@
       <!-- /cards -->
     </div>
     <!-- /layout -->
+    </div>
+    <!-- /tab-tc -->
+
+    <!-- ============================================================
+     TAB: TARIFAS GENERATOR
+     ============================================================ -->
+    <div id="tab-fares" class="tab-panel hidden">
+    <div class="layout">
+
+      <!-- ==================== LEFT: FARES CONFIG ==================== -->
+      <div class="cfg">
+        <div class="cfg-h"><h2>⚙️ Configuración de Tarifas</h2></div>
+        <div class="cfg-b">
+
+          <!-- Step 1: Upload Excel -->
+          <div class="step">
+            <div class="slbl">
+              <div class="sn">1</div>
+              <span>Excel de Tarifas</span>
+            </div>
+            <div class="upload" id="fuz" onclick="document.getElementById('ffi').click()">
+              <div class="icon">📊</div>
+              <p>Clic o arrastra el archivo</p>
+              <p style="font-size:10px;color:#9ca3af;margin-top:2px">
+                Status · Campaign · Origin · Destination · Price Before · Price · Departure · Return · Taxes
+              </p>
+              <div class="fname" id="ffname" style="display:none"></div>
+            </div>
+            <input type="file" id="ffi" accept=".xlsx,.xls" onchange="handleFaresFile(event)" />
+            <div id="flstatus"></div>
+            <div id="faresPreview" style="display:none;margin-top:8px"></div>
+          </div>
+
+          <div class="div"></div>
+
+          <!-- Step 2: Campaign -->
+          <div class="step">
+            <div class="slbl">
+              <div class="sn">2</div>
+              <span>Campaña</span>
+            </div>
+            <label>Nombre de la campaña (filtro)</label>
+            <input type="text" id="faresCampaign" placeholder="ej: dom-apr" />
+            <p class="hint">Filtra las filas por la columna Campaign del Excel</p>
+          </div>
+
+          <div class="div"></div>
+
+          <!-- Step 3: T&C link -->
+          <div class="step">
+            <div class="slbl">
+              <div class="sn">3</div>
+              <span>Enlace a T&amp;C</span>
+            </div>
+            <label>URL / anchor de los Términos y Condiciones</label>
+            <input type="text" id="tcAnchor" placeholder="vuelos-terminos-y-condiciones#domCUN" />
+            <p class="hint">Aparece en el disclaimer (*) al pie del bloque</p>
+          </div>
+
+          <div class="div"></div>
+
+          <button class="btn-gen" id="faresGenBtn" onclick="generateFares()" disabled>
+            ✨ Generar HTML de Tarifas
+          </button>
+        </div>
+      </div>
+      <!-- /fares cfg -->
+
+      <!-- ==================== RIGHT: FARES OUTPUT ==================== -->
+      <div class="cards" id="faresOutputArea">
+        <div class="placeholder" id="faresPh">
+          <div class="bi">✈️</div>
+          <p>
+            Sube el Excel de tarifas,<br />selecciona la campaña<br />y genera el HTML.<br /><br />
+            <span style="font-size:12px">
+              Se generan <strong>3 assets independientes</strong><br />
+              (ES · EN · PT) listos para AirTRFX.
+            </span>
+          </p>
+        </div>
+
+        <!-- Español -->
+        <div class="lang-card" id="faresCard-es" style="display:none">
+          <div class="lc-header">
+            <div class="lc-title">
+              <span class="flag">🇪🇸</span>
+              <span class="name">Español — AirTRFX asset</span>
+              <span class="meta" id="faresMeta-es"></span>
+            </div>
+            <div class="lc-actions">
+              <button class="btn-copy" id="cpFares-es" onclick="copyFares('es')">
+                📋 Copiar HTML
+              </button>
+            </div>
+          </div>
+          <div class="lc-body">
+            <textarea id="outFares-es" readonly style="height:300px;font-size:10px"></textarea>
+          </div>
+        </div>
+
+        <!-- English -->
+        <div class="lang-card" id="faresCard-en" style="display:none">
+          <div class="lc-header">
+            <div class="lc-title">
+              <span class="flag">🇺🇸</span>
+              <span class="name">English — AirTRFX asset</span>
+              <span class="meta" id="faresMeta-en"></span>
+            </div>
+            <div class="lc-actions">
+              <button class="btn-copy" id="cpFares-en" onclick="copyFares('en')">
+                📋 Copy HTML
+              </button>
+            </div>
+          </div>
+          <div class="lc-body">
+            <textarea id="outFares-en" readonly style="height:300px;font-size:10px"></textarea>
+          </div>
+        </div>
+
+        <!-- Português -->
+        <div class="lang-card" id="faresCard-pt" style="display:none">
+          <div class="lc-header">
+            <div class="lc-title">
+              <span class="flag">🇧🇷</span>
+              <span class="name">Português — AirTRFX asset</span>
+              <span class="meta" id="faresMeta-pt"></span>
+            </div>
+            <div class="lc-actions">
+              <button class="btn-copy" id="cpFares-pt" onclick="copyFares('pt')">
+                📋 Copiar HTML
+              </button>
+            </div>
+          </div>
+          <div class="lc-body">
+            <textarea id="outFares-pt" readonly style="height:300px;font-size:10px"></textarea>
+          </div>
+        </div>
+      </div>
+      <!-- /fares output -->
+
+    </div>
+    <!-- /fares layout -->
+    </div>
+    <!-- /tab-fares -->
 
     <footer class="footer">
       <img

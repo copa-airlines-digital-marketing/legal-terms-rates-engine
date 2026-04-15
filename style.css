@@ -52,6 +52,9 @@ body {
     sans-serif;
   background: #f0f4f8;
   color: #1a202c;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
 /* ================================================================
@@ -89,6 +92,7 @@ body {
    LAYOUT
    ================================================================ */
 .layout {
+  flex: 1;
   display: grid;
   grid-template-columns: 360px 1fr;
   gap: 20px;
@@ -527,12 +531,11 @@ input[type="file"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 98px;
-  margin-top: 12px;
+  height: 32px;
 }
 
 .footer-logo {
-  height: 44px;
+  height: 16px;
   width: auto;
   opacity: 0.9;
   transition: opacity 0.2s;
@@ -540,4 +543,87 @@ input[type="file"] {
 
 .footer-logo:hover {
   opacity: 1;
+}
+
+/* ================================================================
+   TABS
+   ================================================================ */
+.tabs-nav {
+  display: flex;
+  gap: 0;
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 16px 20px 0;
+}
+
+.tab-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 10px 10px 0 0;
+  background: #e5e7eb;
+  color: #6b7280;
+  font-family: "Gilroy", sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  margin-right: 4px;
+}
+
+.tab-btn:hover {
+  background: #d1d5db;
+  color: #374151;
+}
+
+.tab-btn.active {
+  background: #ffffff;
+  color: #003087;
+  box-shadow: 0 -2px 0 0 #003087 inset;
+}
+
+.tab-panel {
+  flex: 1;
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.tab-panel .layout {
+  flex: none;
+  margin: 0;
+  padding: 20px 0;
+}
+
+.tab-panel.hidden {
+  display: none;
+}
+
+/* ================================================================
+   FARES GENERATOR EXTRAS
+   ================================================================ */
+#faresPreview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#faresPreview .rt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+#faresPreview .rt .rb {
+  background: #1e40af;
+  color: #fff;
+  border-radius: 20px;
+  padding: 0 6px;
+  font-size: 10px;
 }

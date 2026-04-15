@@ -659,3 +659,351 @@ function copyLang(lang) {
 function setStatus(msg, type) {
   document.getElementById('lstatus').innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
 }
+
+// ================================================================
+// TAB SWITCHER
+// ================================================================
+function switchTab(tab) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.remove('hidden');
+  document.getElementById('tab-btn-' + tab).classList.add('active');
+}
+
+// ================================================================
+// FARES GENERATOR — CONFIG
+// ================================================================
+const STOREFRONTS = {
+  pa: ['es', 'en'],
+  ec: ['es', 'en', 'pt', 'fr'],
+  us: ['es', 'en', 'pt'],
+  br: ['en', 'pt'],
+  ar: ['es', 'en', 'pt'],
+  mx: ['es', 'en'],
+  ca: ['es', 'en', 'fr'],
+  co: ['es', 'en'],
+  cl: ['es', 'en', 'pt'],
+  cr: ['es', 'en', 'pt'],
+  gs: ['es', 'en', 'pt', 'fr'],
+};
+
+const AIRPORT_SF = {
+  PTY:'pa',
+  UIO:'ec', GYE:'ec',
+  MCO:'us', JFK:'us', SAN:'us', LAX:'us', MIA:'us',
+  GRU:'br', GIG:'br', CGH:'br',
+  EZE:'ar', AEP:'ar', MDZ:'ar', COR:'ar', ROS:'ar',
+  CUN:'mx', MEX:'mx', GDL:'mx', MTY:'mx',
+  YYZ:'ca', YVR:'ca', YUL:'ca',
+  BOG:'co', MDE:'co', CLO:'co', BAQ:'co', CTG:'co',
+  SCL:'cl',
+  SJO:'cr',
+};
+
+// currency per storefront (same logic as Svelte getCurrencyCode)
+const SF_CURRENCY = {
+  pa:'USD', ec:'USD', us:'USD', br:'BRL', ar:'USD',
+  mx:'MXN', ca:'CAD', co:'COP', cl:'CLP', cr:'CRC', gs:'USD',
+};
+
+// multilingual city names (HTML-entity encoded where needed)
+const FARE_CITIES = {
+  PTY:{ es:'Panam&aacute;',      en:'Panama',           pt:'Panam&aacute;',      fr:'Panama' },
+  BOG:{ es:'Bogot&aacute;',      en:'Bogota',           pt:'Bogot&aacute;',      fr:'Bogota' },
+  MDE:{ es:'Medell&iacute;n',    en:'Medellin',         pt:'Medell&iacute;n',    fr:'Medell&iacute;n' },
+  CLO:{ es:'Cali',               en:'Cali',             pt:'Cali',               fr:'Cali' },
+  BAQ:{ es:'Barranquilla',       en:'Barranquilla',     pt:'Barranquilla',       fr:'Barranquilla' },
+  CTG:{ es:'Cartagena',          en:'Cartagena',        pt:'Cartagena',          fr:'Cartagena' },
+  UIO:{ es:'Quito',              en:'Quito',            pt:'Quito',              fr:'Quito' },
+  GYE:{ es:'Guayaquil',         en:'Guayaquil',        pt:'Guayaquil',          fr:'Guayaquil' },
+  MCO:{ es:'Orlando',            en:'Orlando',          pt:'Orlando',            fr:'Orlando' },
+  JFK:{ es:'Nueva York',         en:'New York',         pt:'Nova York',          fr:'New York' },
+  SAN:{ es:'San Diego',          en:'San Diego',        pt:'San Diego',          fr:'San Diego' },
+  LAX:{ es:'Los &Aacute;ngeles', en:'Los Angeles',      pt:'Los Angeles',        fr:'Los Angeles' },
+  MIA:{ es:'Miami',              en:'Miami',            pt:'Miami',              fr:'Miami' },
+  GRU:{ es:'Sao Paulo',          en:'Sao Paulo',        pt:'Sao Paulo',          fr:'Sao Paulo' },
+  CGH:{ es:'Sao Paulo',          en:'Sao Paulo',        pt:'Sao Paulo',          fr:'Sao Paulo' },
+  GIG:{ es:'Rio de Janeiro',     en:'Rio de Janeiro',   pt:'Rio de Janeiro',     fr:'Rio de Janeiro' },
+  EZE:{ es:'Buenos Aires',       en:'Buenos Aires',     pt:'Buenos Aires',       fr:'Buenos Aires' },
+  AEP:{ es:'Buenos Aires',       en:'Buenos Aires',     pt:'Buenos Aires',       fr:'Buenos Aires' },
+  MDZ:{ es:'Mendoza',            en:'Mendoza',          pt:'Mendoza',            fr:'Mendoza' },
+  COR:{ es:'C&oacute;rdoba',     en:'Cordoba',          pt:'Cordoba',            fr:'Cordoba' },
+  ROS:{ es:'Rosario',            en:'Rosario',          pt:'Ros&aacute;rio',     fr:'Rosario' },
+  CUN:{ es:'Cancun',             en:'Cancun',           pt:'Cancun',             fr:'Cancun' },
+  MEX:{ es:'Ciudad de M&eacute;xico', en:'Mexico City', pt:'Cidade do M&eacute;xico', fr:'Mexico' },
+  GDL:{ es:'Guadalajara',        en:'Guadalajara',      pt:'Guadalajara',        fr:'Guadalajara' },
+  MTY:{ es:'Monterrey',          en:'Monterrey',        pt:'Monterrey',          fr:'Monterrey' },
+  YYZ:{ es:'Toronto',            en:'Toronto',          pt:'Toronto',            fr:'Toronto' },
+  YVR:{ es:'Vancouver',          en:'Vancouver',        pt:'Vancouver',          fr:'Vancouver' },
+  YUL:{ es:'Montreal',           en:'Montreal',         pt:'Montreal',           fr:'Montr&eacute;al' },
+  SCL:{ es:'Santiago de Chile',  en:'Santiago de Chile',pt:'Santiago de Chile',  fr:'Santiago de Chile' },
+  SJO:{ es:'San Jos&eacute;',    en:'San Jos&eacute;',  pt:'San Jos&eacute;',    fr:'San Jos&eacute;' },
+  MBJ:{ es:'Montego Bay',        en:'Montego Bay',      pt:'Montego Bay',        fr:'Montego Bay' },
+  PUJ:{ es:'Punta Cana',         en:'Punta Cana',       pt:'Punta Cana',         fr:'Punta Cana' },
+  SDQ:{ es:'Santo Domingo',      en:'Santo Domingo',    pt:'Santo Domingo',      fr:'Santo Domingo' },
+  HAV:{ es:'La Habana',          en:'Havana',           pt:'Havana',             fr:'La Havane' },
+  ASU:{ es:'Asunci&oacute;n',    en:'Asuncion',         pt:'Assun&ccedil;&atilde;o', fr:'Asuncion' },
+  MVD:{ es:'Montevideo',         en:'Montevideo',       pt:'Montevideo',         fr:'Montevideo' },
+  LIM:{ es:'Lima',               en:'Lima',             pt:'Lima',               fr:'Lima' },
+  GUA:{ es:'Guatemala',          en:'Guatemala',        pt:'Guatemala',          fr:'Guatemala' },
+  SAL:{ es:'San Salvador',       en:'San Salvador',     pt:'San Salvador',       fr:'San Salvador' },
+  SAP:{ es:'San Pedro Sula',     en:'San Pedro Sula',   pt:'San Pedro Sula',     fr:'San Pedro Sula' },
+  XPL:{ es:'Comayagua, Tegucigalpa', en:'Comayagua, Tegucigalpa', pt:'Comayagua, Tegucigalpa', fr:'Comayagua, Tegucigalpa' },
+  GEO:{ es:'Georgetown',         en:'Georgetown',       pt:'Georgetown',         fr:'Georgetown' },
+  POS:{ es:'Puerto Espa&ntilde;a', en:'Port of Spain',  pt:'Port of Spain',      fr:'Port of Spain' },
+  LPB:{ es:'La Paz',             en:'La Paz',           pt:'La Paz',             fr:'La Paz' },
+  VVI:{ es:'Santa Cruz de la Sierra', en:'Santa Cruz de la Sierra', pt:'Santa Cruz de la Sierra', fr:'Santa Cruz de la Sierra' },
+};
+
+// Known destination image UUIDs from Directus
+const DEST_IMG_CACHE = {
+  BOG: '1b589009-eb2d-466d-adb4-df5c872e76fa',
+  CUN: '5766915a-4092-4508-bf2a-7f82497d9a40',
+};
+
+let fareRows = [];
+
+// ================================================================
+// FARES — FILE HANDLER
+// ================================================================
+const fuz = document.getElementById('fuz');
+fuz.addEventListener('dragover', e => { e.preventDefault(); fuz.classList.add('drag'); });
+fuz.addEventListener('dragleave', () => fuz.classList.remove('drag'));
+fuz.addEventListener('drop', e => {
+  e.preventDefault(); fuz.classList.remove('drag');
+  handleFaresFile({ target: { files: e.dataTransfer.files } });
+});
+
+function handleFaresFile(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: true });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+      processFaresExcel(rows);
+      // Try to load exchange rates from Sheet 2 if not already loaded
+      if (!Object.keys(ratesData).length && wb.SheetNames.length > 1) {
+        processRates(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[1]], { defval: '' }));
+      }
+      document.getElementById('ffname').textContent = '✓ ' + file.name;
+      document.getElementById('ffname').style.display = 'block';
+      fuz.classList.add('ok');
+    } catch (err) {
+      setFaresStatus('✗ Error: ' + err.message, 'e');
+    }
+  };
+  reader.readAsBinaryString(file);
+}
+
+function processFaresExcel(rows) {
+  if (!rows.length) return;
+  const keys = Object.keys(rows[0]);
+  const fc = name => keys.find(k => k.toLowerCase().replace(/[\s_]/g, '').includes(name.toLowerCase().replace(/[\s_]/g, ''))) || null;
+
+  const cStatus   = fc('status');
+  const cCampaign = fc('campaign');
+  const cOri      = fc('origin');
+  const cDes      = fc('destination');
+  const cPriceBef = fc('pricebefore') || fc('price_before') || fc('price before');
+  const cPrice    = keys.find(k => k.toLowerCase().trim() === 'price') || fc('price');
+  const cDep      = fc('departure');
+  const cRet      = fc('return');
+  const cTax      = fc('tax');
+
+  fareRows = rows
+    .map(r => ({
+      status:      String(r[cStatus]   || '').toLowerCase().trim(),
+      campaign:    String(r[cCampaign] || '').toLowerCase().trim(),
+      origin:      String(r[cOri]      || '').toUpperCase().trim(),
+      destination: String(r[cDes]      || '').toUpperCase().trim(),
+      price_before: parseFloat(r[cPriceBef]) || 0,
+      price:        parseFloat(r[cPrice])    || 0,
+      departure:    pDate(r[cDep]),
+      return:       pDate(r[cRet]),
+      taxes:        parseFloat(r[cTax])      || 0,
+    }))
+    .filter(r => r.origin && r.destination && r.price);
+
+  const campaigns = [...new Set(fareRows.map(r => r.campaign))].filter(Boolean);
+  if (campaigns.length === 1) document.getElementById('faresCampaign').value = campaigns[0];
+
+  // Show campaign summary
+  const preview = document.getElementById('faresPreview');
+  preview.style.display = 'block';
+  preview.innerHTML = campaigns.map(c => {
+    const n = fareRows.filter(r => r.campaign === c).length;
+    return `<span class="rt">${c} <span class="rb">${n}</span></span>`;
+  }).join('');
+
+  document.getElementById('faresGenBtn').disabled = false;
+  setFaresStatus(`✓ ${fareRows.length} tarifas cargadas`, 's');
+
+  // Async: try to fetch missing destination images from Directus
+  fetchDestImages();
+}
+
+async function fetchDestImages() {
+  try {
+    const res = await fetch('https://cm-marketing.directus.app/items/destination?fields=iata_code,main_image&limit=-1');
+    if (!res.ok) return;
+    const { data } = await res.json();
+    data.forEach(d => {
+      if (d.iata_code && d.main_image) DEST_IMG_CACHE[d.iata_code] = d.main_image;
+    });
+  } catch (_) { /* public endpoint might require auth – silently fail */ }
+}
+
+// ================================================================
+// FARES — GENERATE
+// ================================================================
+function generateFares() {
+  const campaign = document.getElementById('faresCampaign').value.trim().toLowerCase();
+  const tcAnchor = document.getElementById('tcAnchor').value.trim();
+
+  const filtered = fareRows.filter(r => {
+    const activeOk = !r.status || r.status === 'active';
+    const campOk   = !campaign || r.campaign === campaign;
+    return activeOk && campOk;
+  });
+  if (!filtered.length) { alert('No hay tarifas activas para esa campaña.'); return; }
+
+  document.getElementById('faresPh').style.display = 'none';
+
+  ['es', 'en', 'pt'].forEach(lang => {
+    const html = buildFaresForLang(filtered, lang, tcAnchor);
+    document.getElementById(`outFares-${lang}`).value = html;
+    document.getElementById(`faresMeta-${lang}`).textContent =
+      `${(html.length / 1024).toFixed(1)} KB · ${filtered.length} tarifas`;
+    document.getElementById(`faresCard-${lang}`).style.display = 'block';
+  });
+}
+
+function buildFaresForLang(fares, lang, tcAnchor) {
+  const blocks = [];
+
+  Object.entries(STOREFRONTS).forEach(([country, langs]) => {
+    if (!langs.includes(lang)) return;
+
+    const sfFares = fares.filter(f => {
+      const sf = AIRPORT_SF[f.origin] || 'gs';
+      return country === 'gs' ? sf === 'gs' : sf === country;
+    });
+
+    const innerHTML = sfFares.length
+      ? `<div class="container mx-auto">\n<ol class="grid justify-center gap-3 pb-8" style="grid-template-columns: repeat(auto-fit, minmax(376px, 1fr));">\n${sfFares.map(f => buildFareCard(f, lang, country)).join('\n')}\n</ol>\n</div>`
+      : `<div class="container mx-auto">\n<p></p>\n</div>`;
+
+    blocks.push(`<div class="hidden" data-country="${country}" data-lang="${lang}">\n${innerHTML}\n</div>`);
+  });
+
+  const anchor = tcAnchor || '#terminos-y-condiciones';
+  const disclaimers = {
+    es: `*Aplican restricciones, consulte nuestros <a href="${anchor}" target="_blank" rel="noopener"><span class="font-suisse font-normal text-d1 text-primary hover:!underline">T&eacute;rminos y condiciones</span></a>.`,
+    en: `*Restrictions apply, please consult our <a href="https://www.copaair.com/en/flights-terms-and-conditions${anchor}" target="_blank" rel="noopener"><span class="font-suisse font-normal text-d1 text-primary hover:!underline">Terms and conditions</span></a>.`,
+    pt: `*Aplicam-se restri&ccedil;&otilde;es, consulte nossos <a href="voos-termos-e-condicoes${anchor}" target="_blank" rel="noopener"><span class="font-suisse font-normal text-d1 text-primary hover:!underline">Termos e condi&ccedil;&otilde;es</span></a>.`,
+  };
+
+  const disclaimer = `<p class="font-suisse font-normal text-d1 text-grey-600 text-center pb-12 container mx-auto">${disclaimers[lang]}</p>`;
+
+  const scriptDeleteAll = `<script type="text/javascript">
+(function deleteAll() {
+  const x = document.querySelectorAll(".__pfs, .__bss, .__psc");
+  for (i = 0; i < x.length; i++) { x[i].classList.remove('__pfs', '__bss', '__psc'); }
+})();
+<\/script>`;
+
+  const scriptDataLayer = `<script>
+setTimeout(() => {
+  const country = EM?.dataLayer?.[0]?.page?.countryIsoCode?.toLowerCase() || "gs";
+  const lang    = EM?.dataLayer?.[0]?.page?.languageIsoCode?.toLowerCase() || "${lang}";
+  const allDivs = document.querySelectorAll('div[data-country][data-lang]');
+  allDivs.forEach((div) => {
+    const match =
+      div.getAttribute('data-country')?.toLowerCase() === country &&
+      div.getAttribute('data-lang')?.toLowerCase()    === lang;
+    div.classList.toggle('hidden', !match);
+  });
+}, 3000);
+<\/script>`;
+
+  return `<div id="app">\n${blocks.join('\n')}\n</div>\n${disclaimer}\n${scriptDeleteAll}\n${scriptDataLayer}`;
+}
+
+function buildFareCard(fare, lang, country) {
+  const connWord  = lang === 'es' ? ' a'           : lang === 'en' ? ' to'       : ' para';
+  const tripType  = lang === 'es' ? 'Ida y Vuelta' : lang === 'en' ? 'Roundtrip' : 'Ida e volta';
+  const fromWord  = lang === 'es' ? 'desde'        : lang === 'en' ? 'from'      : 'de';
+  const taxLabel  = lang === 'en' ? 'Taxes included' : lang === 'es' ? 'Impuestos incluidos de' : 'Impostos inclu&iacute;dos em';
+
+  const currency = SF_CURRENCY[country] || 'USD';
+  const price     = fareConvertFmt(fare.price, currency);
+  const pbefore   = fare.price_before ? fareConvertFmt(fare.price_before, currency) : null;
+  const taxes     = fare.taxes        ? fareConvertFmt(fare.taxes, currency)        : null;
+
+  const oriName = fareCityName(fare.origin, lang);
+  const desName = fareCityName(fare.destination, lang);
+  const imgUUID = DEST_IMG_CACHE[fare.destination] || '1b589009-eb2d-466d-adb4-df5c872e76fa';
+  const imgSrc  = `https://cm-marketing.directus.app/assets/${imgUUID}`;
+
+  const dep = fareFormatDate(fare.departure, lang);
+  const ret = fareFormatDate(fare.return, lang);
+
+  const href = `https://shopping.copaair.com/?roundtrip=true&amp;adults=1&amp;children=0&amp;infants=0&amp;sf=${country}&amp;langid=${lang}&amp;date1=${fare.departure}&amp;date2=${fare.return}&amp;promocode=&amp;area1=${fare.origin}&amp;area2=${fare.destination}&amp;advanced_air_search=false&amp;flexible_dates_v2=false&amp;origin=EM`;
+
+  const pbSpan = pbefore
+    ? `<span class="font-normal text-d1 self-end font-suisse text-grey-600 line-through ">${currency}&nbsp;${pbefore}</span>`
+    : '';
+  const taxSpan = taxes
+    ? `<span class="font-suisse flex gap-1 justify-end font-normal text-d3 text-grey-600  s-TlaWMsF1F1vX"><strong>${taxLabel}</strong> ${currency}&nbsp;${taxes}</span>`
+    : '';
+
+  return `<li class="custom-fares h-full w-full max-w-[400px]"><a class="grid grid-cols-[8px_116px_auto_8px] grid-rows-[8px_auto_auto_8px] overflow-hidden rounded-2xl outline outline-1 outline-grey-300 hover:outline-2 hover:outline-primary-ultralight focus:outline-2 focus:outline-primary-ultralight" role="button" href="${href}" data-oac="${fare.origin}" data-dac="${fare.destination}" data-departure-date="${fare.departure}" data-return-date="${fare.return}" data-price="USD ${fare.price}"><img class="col-start-1 col-end-3 row-span-full h-full w-full object-cover" loading="lazy" alt="${desName.replace(/&[^;]+;/g, '')}" src="${imgSrc}" /> <span class="col-start-3 col-end-3 row-start-2 row-end-2 mx-2 mb-2 flex flex-col gap-1"><span class="text-b font-bold flex h-auto flex-col font-gilroy text-primary"><span>${oriName} (${fare.origin})${connWord}</span> <span>${desName} (${fare.destination})</span></span> <span class="flex h-auto items-center gap-2"><img src="https://cm-marketing.directus.app/assets/5c8e2708-d6e2-4de0-ad47-60b94c7f512f" class="h-[10.3px] w-[11.6px]" alt="date" /> <span class="font-suisse font-normal text-d3 text-grey-600"> ${tripType}<br />${dep} - ${ret}</span></span></span> <span class="col-start-3 col-end-3 row-start-3 row-end-3 mx-2 mt-2"><span class="flex grid-rows-subgrid flex-col items-end">${pbSpan}<span class="gap-y-2"><span class="font-suisse font-normal text-d3 text-grey-600 ">${fromWord} <span class="text-u2 font-gilroy font-bold text-primary lg:text-u1 ">${currency}&nbsp;${price}<sup>*</sup></span></span></span></span>${taxSpan}</span></a></li>`;
+}
+
+// ================================================================
+// FARES — UTILITIES
+// ================================================================
+function fareCityName(iata, lang) {
+  const city = FARE_CITIES[iata];
+  if (!city) return iata;
+  return city[lang] || city['en'] || iata;
+}
+
+function fareFormatDate(dateStr, lang) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const options = { month: 'short', day: '2-digit', year: 'numeric' };
+  const locale = lang === 'en' ? 'en-US' : lang === 'es' ? 'es-419' : 'pt-BR';
+  return date.toLocaleDateString(locale, options).replace(/\./g, '');
+}
+
+function fareConvertFmt(priceUSD, currencyCode) {
+  if (currencyCode === 'USD' || !ratesData[currencyCode]) {
+    return fareFmtNum(Math.ceil(priceUSD), 'USD');
+  }
+  const localPrice = Math.ceil(priceUSD / ratesData[currencyCode]);
+  return fareFmtNum(localPrice, currencyCode);
+}
+
+function fareFmtNum(n, currency) {
+  const sep = ['COP', 'BRL'].includes(currency) ? '.' : ',';
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, sep);
+}
+
+function copyFares(lang) {
+  const ta  = document.getElementById(`outFares-${lang}`);
+  const btn = document.getElementById(`cpFares-${lang}`);
+  navigator.clipboard.writeText(ta.value).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copiado!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+function setFaresStatus(msg, type) {
+  document.getElementById('flstatus').innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+}
