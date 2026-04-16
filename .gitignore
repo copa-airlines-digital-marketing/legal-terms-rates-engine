@@ -1,0 +1,8 @@
+# Local config (API tokens — never commit this file)
+config.js
+
+# Wrangler / Cloudflare
+.wrangler/
+
+# Node
+node_modules/

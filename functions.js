@@ -860,7 +860,6 @@ async function fetchDestImages() {
 // ================================================================
 function generateFares() {
   const campaign = document.getElementById('faresCampaign').value.trim().toLowerCase();
-  const tcAnchor = document.getElementById('tcAnchor').value.trim();
 
   const filtered = fareRows.filter(r => {
     const activeOk = !r.status || r.status === 'active';
@@ -872,7 +871,7 @@ function generateFares() {
   document.getElementById('faresPh').style.display = 'none';
 
   ['es', 'en', 'pt'].forEach(lang => {
-    const html = buildFaresForLang(filtered, lang, tcAnchor);
+    const html = buildFaresForLang(filtered, lang, campaign);
     document.getElementById(`outFares-${lang}`).value = html;
     document.getElementById(`faresMeta-${lang}`).textContent =
       `${(html.length / 1024).toFixed(1)} KB · ${filtered.length} tarifas`;
@@ -880,7 +879,7 @@ function generateFares() {
   });
 }
 
-function buildFaresForLang(fares, lang, tcAnchor) {
+function buildFaresForLang(fares, lang, campaign) {
   const blocks = [];
 
   Object.entries(STOREFRONTS).forEach(([country, langs]) => {
@@ -898,14 +897,7 @@ function buildFaresForLang(fares, lang, tcAnchor) {
     blocks.push(`<div class="hidden" data-country="${country}" data-lang="${lang}">\n${innerHTML}\n</div>`);
   });
 
-  const anchor = tcAnchor || '#terminos-y-condiciones';
-  const disclaimers = {
-    es: `*Aplican restricciones, consulte nuestros <a href="${anchor}" target="_blank" rel="noopener"><span class="font-suisse font-normal text-d1 text-primary hover:!underline">T&eacute;rminos y condiciones</span></a>.`,
-    en: `*Restrictions apply, please consult our <a href="https://www.copaair.com/en/flights-terms-and-conditions${anchor}" target="_blank" rel="noopener"><span class="font-suisse font-normal text-d1 text-primary hover:!underline">Terms and conditions</span></a>.`,
-    pt: `*Aplicam-se restri&ccedil;&otilde;es, consulte nossos <a href="voos-termos-e-condicoes${anchor}" target="_blank" rel="noopener"><span class="font-suisse font-normal text-d1 text-primary hover:!underline">Termos e condi&ccedil;&otilde;es</span></a>.`,
-  };
-
-  const disclaimer = `<p class="font-suisse font-normal text-d1 text-grey-600 text-center pb-12 container mx-auto">${disclaimers[lang]}</p>`;
+  const disclaimer = buildTcDisclaimerParagraph(campaign || 'terminos-y-condiciones', lang);
 
   const scriptDeleteAll = `<script type="text/javascript">
 (function deleteAll() {
@@ -1006,4 +998,820 @@ function copyFares(lang) {
 
 function setFaresStatus(msg, type) {
   document.getElementById('flstatus').innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+}
+
+// ================================================================
+// DIRECTUS SYNC — CONFIG & STATE
+// ================================================================
+const DX_BASE = 'https://cm-marketing.directus.app';
+
+const DX_COUNTRY_TO_SF = {
+  PA:'pa', US:'us', BR:'br', AR:'ar', MX:'mx',
+  CA:'ca', CO:'co', CL:'cl', CR:'cr', EC:'ec',
+};
+
+let dxFareRows = [];
+let dxRatesRows = [];
+
+// ================================================================
+// SHARED — T&C DISCLAIMER PARAGRAPH (auto-built from campaign name)
+// ================================================================
+function buildTcDisclaimerParagraph(campaign, lang) {
+  const hash = `#${campaign}`;
+  const urls = {
+    es: `https://www.copaair.com/es/vuelos-terminos-y-condiciones${hash}`,
+    en: `https://www.copaair.com/en/flights-terms-and-conditions${hash}`,
+    pt: `https://www.copaair.com/pt/voos-termos-e-condicoes${hash}`,
+  };
+  const inner = {
+    es: `*Aplican restricciones, consulte nuestros <a href="${urls.es}" target="_blank" rel="noopener"><span class="font-suisse font-normal text-d1 text-primary hover:!underline">T&eacute;rminos y condiciones</span></a>.`,
+    en: `*Restrictions apply, please consult our <a href="${urls.en}" target="_blank" rel="noopener"><span class="font-suisse font-normal text-d1 text-primary hover:!underline">Terms and conditions</span></a>.`,
+    pt: `*Aplicam-se restri&ccedil;&otilde;es, consulte nossos <a href="${urls.pt}" target="_blank" rel="noopener"><span class="font-suisse font-normal text-d1 text-primary hover:!underline">Termos e condi&ccedil;&otilde;es</span></a>.`,
+  };
+  return `<p class="font-suisse font-normal text-d1 text-grey-600 text-center pb-12 container mx-auto">${inner[lang]}</p>`;
+}
+
+// ================================================================
+// DIRECTUS SYNC — DRAG & DROP
+// ================================================================
+const dxuz = document.getElementById('dxuz');
+dxuz.addEventListener('dragover', e => { e.preventDefault(); dxuz.classList.add('drag'); });
+dxuz.addEventListener('dragleave', () => dxuz.classList.remove('drag'));
+dxuz.addEventListener('drop', e => {
+  e.preventDefault();
+  dxuz.classList.remove('drag');
+  handleDirectusFile({ target: { files: e.dataTransfer.files } });
+});
+
+// ================================================================
+// DIRECTUS SYNC — FILE HANDLER
+// ================================================================
+function handleDirectusFile(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: true });
+      const fareSheet = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+      const rateSheet = wb.SheetNames.length > 1
+        ? XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[1]], { defval: '' })
+        : [];
+
+      processDxFares(fareSheet);
+      processDxRates(rateSheet);
+
+      document.getElementById('dxfname').textContent = '✓ ' + file.name;
+      document.getElementById('dxfname').style.display = 'block';
+      dxuz.classList.add('ok');
+
+      const campaigns = [...new Set(dxFareRows.map(r => r.campaign).filter(Boolean))];
+      if (campaigns.length === 1) document.getElementById('dxCampaign').value = campaigns[0];
+
+      document.getElementById('dxSyncBtn').disabled = false;
+      // Status detail is set inside processDxFares after column detection
+    } catch (err) {
+      document.getElementById('dxFileStatus').innerHTML =
+        `<div class="alert alert-e">✗ Error: ${err.message}</div>`;
+    }
+  };
+  reader.readAsBinaryString(file);
+}
+
+// ================================================================
+// DIRECTUS SYNC — PARSE FARES FROM EXCEL
+// ================================================================
+function processDxFares(rows) {
+  if (!rows.length) return;
+  const keys = Object.keys(rows[0]);
+
+  // fc(...names): finds the FIRST column whose name CONTAINS any of the given terms (normalized)
+  const fc = (...names) => {
+    for (const name of names) {
+      const norm = name.toLowerCase().replace(/[\s_]/g, '');
+      const hit = keys.find(k => k.toLowerCase().replace(/[\s_]/g, '').includes(norm));
+      if (hit) return hit;
+    }
+    return null;
+  };
+
+  // fcStart(...names): finds first column whose name STARTS WITH the term (word-boundary safe)
+  // Handles headers like "ORI (ATD)" or "DES IATA" without colliding with ORIGIN / DESCRIPTION
+  const fcStart = (...names) => {
+    for (const name of names) {
+      const re = new RegExp(`^${name}\\b`, 'i');
+      const hit = keys.find(k => re.test(k.trim()));
+      if (hit) return hit;
+    }
+    return null;
+  };
+
+  const uiCampaign = document.getElementById('dxCampaign').value.trim().toLowerCase();
+
+  const cStatus   = fc('status');
+  const cCampaign = fc('campaign');
+  // Origin: try exact name first, then abbreviated header "ORI..." (e.g. "ORI (ATD)")
+  const cOri      = fc('origin', 'origen') || fcStart('ori') || keys[2];
+  // Destination: same pattern for "DES..." headers
+  const cDes      = fc('destination', 'destino') || fcStart('des') || keys[3];
+  // Price before (original/full price, shown as strikethrough — the HIGHER value):
+  // "MONTO TOTAL DESPUES (BASE RT+FUEL+TAX)" holds the full original amount
+  const cPriceBef = fc('despues', 'después', 'price_before', 'price before', 'pricebefore', 'original');
+  // Sale/promotional price (the LOWER value, after discount):
+  // "MONTO TOTAL ANTES (BASE RT+FUEL+TAX)" holds the promotional/discounted amount
+  // Also try exact "price" match (Tarifas-style Excel)
+  const cPrice    = keys.find(k => k.toLowerCase().trim() === 'price')
+                 || fc('antes', 'price', 'sale price', 'monto facturado', 'monto base', 'base fare', 'bare fare');
+  // Departure: "departure" (Tarifas format) or "inicio" from "PRIMERA FECHA INICIO" (T&C format)
+  const cDep      = fc('departure', 'travel start') || fc('inicio') || fc('firstflight', 'primera fecha inicio');
+  // Return: "return" (Tarifas format) or "vuelo" from "ULTIMA FECHA DE VUELO" (T&C format)
+  const cRet      = fc('return', 'travel end') || fc('vuelo') || fc('lastflight', 'ultima fecha vuelo');
+  // TAX: use fcStart so "TAX" column wins over "MONTO TOTAL ANTES (... +TAX)" which also contains "tax"
+  const cTax      = fcStart('tax') || fc('taxes', 'impuesto', 'cargo');
+
+  // Log detected mapping so issues are easy to debug
+  console.table({ cOri, cDes, cPrice, cPriceBef, cDep, cRet, cTax, cStatus, cCampaign });
+
+  dxFareRows = rows
+    .map(r => ({
+      // UI campaign always wins; fall back to Excel column only if UI field is empty
+      campaign:     uiCampaign || (cCampaign ? String(r[cCampaign] || '').toLowerCase().trim() : ''),
+      status:       cStatus ? String(r[cStatus] || 'active').toLowerCase().trim() : 'active',
+      origin:       String(r[cOri]      || '').toUpperCase().trim(),
+      destination:  String(r[cDes]      || '').toUpperCase().trim(),
+      price_before: cPriceBef ? (parseFloat(r[cPriceBef]) || null) : null,
+      price:        cPrice    ? (parseFloat(r[cPrice])    || 0)    : 0,
+      departure:    cDep      ? pDate(r[cDep])  : null,
+      return:       cRet      ? pDate(r[cRet])  : null,
+      taxes:        cTax      ? (parseFloat(r[cTax]) || null) : null,
+    }))
+    // Only require origin + destination — price/dates can be edited in the table before sync
+    .filter(r => r.origin && r.destination);
+
+  // Show column mapping summary in the status bar
+  const mappingNote = [
+    `ORI→${cOri || '⚠ no encontrado'}`,
+    `DES→${cDes || '⚠ no encontrado'}`,
+    `Price→${cPrice || '⚠ no encontrado'}`,
+    `Tax→${cTax || '—'}`,
+    `Dep→${cDep || '—'}`,
+    `Ret→${cRet || '—'}`,
+  ].join(' · ');
+  document.getElementById('dxFileStatus').innerHTML =
+    `<div class="alert alert-s">✓ ${dxFareRows.length} tarifa${dxFareRows.length !== 1 ? 's' : ''} · ${dxRatesRows.length} tasas<br><span style="font-size:10px;color:#166534;opacity:.75">${mappingNote}</span></div>`;
+
+  renderFaresTable(dxFareRows);
+}
+
+// ================================================================
+// DIRECTUS SYNC — PARSE RATES FROM EXCEL SHEET 2
+// ================================================================
+function processDxRates(rows) {
+  if (!rows.length) return;
+  const keys = Object.keys(rows[0]);
+  const fc = (...ns) => {
+    for (const n of ns) {
+      const f = keys.find(k => k.toLowerCase().includes(n.toLowerCase()));
+      if (f) return f;
+    }
+    return null;
+  };
+  const cC = fc('Currency', 'currency');
+  const cV = fc('Value in USD', 'Value', 'rate', 'Rate');
+
+  dxRatesRows = [];
+  rows.forEach(r => {
+    const currency = String(r[cC] || '').trim();
+    const rate = parseFloat(r[cV]) || 0;
+    if (currency && rate) dxRatesRows.push({ currency, rate });
+  });
+
+  if (dxRatesRows.length) {
+    document.getElementById('dxRatesList').innerHTML = dxRatesRows
+      .map(r => `<div class="rc"><div class="cur">${r.currency}</div><div class="val">${r.rate.toFixed(5)}</div></div>`)
+      .join('');
+    document.getElementById('dxRatesNote').textContent = `(${dxRatesRows.length} monedas)`;
+    document.getElementById('dxRatesSec').style.display = 'block';
+  }
+}
+
+// ================================================================
+// DIRECTUS SYNC — EDITABLE TABLE
+// ================================================================
+function renderFaresTable(rows) {
+  document.getElementById('dxTableBody').innerHTML = rows.map(renderTableRow).join('');
+  updateTableMeta();
+  document.getElementById('dxPh').style.display = 'none';
+  document.getElementById('dxTableCard').style.display = 'block';
+}
+
+function renderTableRow(r) {
+  const v = val => (val == null ? '' : val);
+  return `<tr>
+    <td><button class="btn-del-row" onclick="this.closest('tr').remove();updateTableMeta()">×</button></td>
+    <td><input class="dxinp" data-field="status"       value="${v(r.status)}" /></td>
+    <td><input class="dxinp" data-field="campaign"     value="${v(r.campaign)}" /></td>
+    <td><input class="dxinp dxinp-code" data-field="origin"      value="${v(r.origin)}" /></td>
+    <td><input class="dxinp dxinp-code" data-field="destination" value="${v(r.destination)}" /></td>
+    <td><input class="dxinp dxinp-num" type="number" step="0.01" data-field="price_before" value="${v(r.price_before)}" /></td>
+    <td><input class="dxinp dxinp-num" type="number" step="0.01" data-field="price"        value="${v(r.price)}" /></td>
+    <td><input class="dxinp" type="date" data-field="departure" value="${v(r.departure)}" /></td>
+    <td><input class="dxinp" type="date" data-field="return"    value="${v(r.return)}" /></td>
+    <td><input class="dxinp dxinp-num" type="number" step="0.01" data-field="taxes" value="${v(r.taxes)}" /></td>
+  </tr>`;
+}
+
+function addFareRow() {
+  const campaign = document.getElementById('dxCampaign').value.trim();
+  const tmp = document.createElement('tbody');
+  tmp.innerHTML = renderTableRow({
+    status: 'active', campaign, origin: '', destination: '',
+    price_before: '', price: '', departure: '', return: '', taxes: '',
+  });
+  document.getElementById('dxTableBody').appendChild(tmp.firstChild);
+  updateTableMeta();
+}
+
+function updateTableMeta() {
+  const n = document.querySelectorAll('#dxTableBody tr').length;
+  document.getElementById('dxTableMeta').textContent = `${n} tarifa${n !== 1 ? 's' : ''}`;
+}
+
+function readTableRows() {
+  const rows = [];
+  document.querySelectorAll('#dxTableBody tr').forEach(tr => {
+    const inp = f => tr.querySelector(`[data-field="${f}"]`)?.value?.trim() || '';
+    // Only skip rows that have no origin or destination — price can legitimately be 0
+    if (!inp('origin') || !inp('destination')) return;
+    rows.push({
+      status:       inp('status') || 'active',
+      campaign:     inp('campaign'),
+      origin:       inp('origin').toUpperCase(),
+      destination:  inp('destination').toUpperCase(),
+      price_before: parseFloat(inp('price_before')) || null,
+      price:        parseFloat(inp('price')) || 0,
+      departure:    inp('departure') || null,
+      return:       inp('return')    || null,
+      taxes:        parseFloat(inp('taxes')) || null,
+    });
+  });
+  return rows;
+}
+
+// ================================================================
+// DIRECTUS SYNC — MAIN FLOW
+// ================================================================
+async function syncToDirectus() {
+  const token = window.APP_CONFIG?.DX_TOKEN;
+  if (!token) {
+    alert('Token no encontrado.\nCrea config.js basándote en config.example.js y recarga la página.');
+    return;
+  }
+
+  const campaign = document.getElementById('dxCampaign').value.trim();
+  if (!campaign) { alert('Ingresa el nombre de la campaña (Paso 2)'); return; }
+
+  const rows = readTableRows();
+  if (!rows.length) { alert('La tabla no tiene filas con Origen y Destino. Verifica que el Excel cargó correctamente.'); return; }
+
+  const btn = document.getElementById('dxSyncBtn');
+  btn.disabled = true;
+  document.getElementById('dxProgress').style.display = 'block';
+  [1,2,3,4].forEach(n => dxStepSet(n, 'pending'));
+
+  try {
+    // Step 1 — Upload new fares
+    dxStepSet(1, 'running', `Subiendo ${rows.length} tarifas...`);
+    await dxPostFares(rows, token);
+    dxStepSet(1, 'done', `✓ ${rows.length} tarifas subidas`);
+
+    // Step 2 — Upload rates
+    dxStepSet(2, 'running', 'Subiendo tasas de cambio...');
+    if (dxRatesRows.length) {
+      await dxUpsertRates(dxRatesRows, token);
+      dxStepSet(2, 'done', `✓ ${dxRatesRows.length} tasas actualizadas`);
+    } else {
+      dxStepSet(2, 'done', '— Sheet 2 vacío, tasas sin cambios');
+    }
+
+    // Step 3 — Fetch from Directus with relations
+    dxStepSet(3, 'running', 'Consultando Directus con relaciones...');
+    const [fares, rates] = await Promise.all([
+      dxFetchFares(campaign, token),
+      dxFetchRates(token),
+    ]);
+    dxStepSet(3, 'done', `✓ ${fares.length} fares obtenidos con destinos e imágenes`);
+
+    // Step 4 — Build HTML
+    dxStepSet(4, 'running', 'Generando HTML...');
+    document.getElementById('dxTableCard').style.display = 'none';
+    document.getElementById('dxHtmlCards').style.display = 'block';
+    ['es', 'en', 'pt'].forEach(lang => {
+      const html = buildDirectusFaresForLang(fares, rates, lang, campaign);
+      document.getElementById(`dxOut-${lang}`).value = html;
+      document.getElementById(`dxMeta-${lang}`).textContent =
+        `${(html.length / 1024).toFixed(1)} KB · ${fares.length} fares`;
+      document.getElementById(`dxCard-${lang}`).style.display = 'block';
+    });
+    dxStepSet(4, 'done', '✓ HTML generado en ES · EN · PT');
+
+  } catch (err) {
+    const running = document.querySelector('.dx-step.running');
+    if (running) { running.className = 'dx-step error'; running.textContent = `✗ Error: ${err.message}`; }
+    console.error('[DX Sync]', err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function dxStepSet(n, state, text) {
+  const el = document.getElementById(`dxStep${n}`);
+  el.className = `dx-step ${state}`;
+  if (text) el.textContent = text;
+}
+
+// ================================================================
+// DIRECTUS SYNC — API CALLS
+// ================================================================
+
+
+async function dxPostFares(rows, token) {
+  const items = rows.map(r => ({
+    origin:       r.origin,
+    destination:  r.destination,
+    departure:    r.departure,
+    return:       r.return,
+    price:        r.price,
+    price_before: r.price_before,
+    taxes:        r.taxes,
+    campaign:     r.campaign,
+    status:       r.status || 'active',
+  }));
+
+  const res = await fetch(`${DX_BASE}/items/custom_fare`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(items),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const msg = body.errors?.[0]?.message || res.status;
+    throw new Error(`POST fares: ${msg}`);
+  }
+}
+
+async function dxUpsertRates(rates, token) {
+  // Fetch existing rates to get their IDs
+  const r = await fetch(`${DX_BASE}/items/currency_conversion_rate?fields[]=id&fields[]=currency&limit=-1`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    const msg = body.errors?.[0]?.message || 'Sin detalles';
+    throw new Error(`GET rates: ${r.status} — ${msg}`);
+  }
+  const { data: existing } = await r.json();
+  const existMap = {};
+  existing.forEach(item => { existMap[item.currency] = item.id; });
+
+  const toUpdate = rates.filter(r => existMap[r.currency]);
+  const toInsert = rates.filter(r => !existMap[r.currency]);
+
+  // PATCH existing
+  for (const rate of toUpdate) {
+    await fetch(`${DX_BASE}/items/currency_conversion_rate/${existMap[rate.currency]}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rate: rate.rate }),
+    });
+  }
+
+  // POST new
+  if (toInsert.length) {
+    await fetch(`${DX_BASE}/items/currency_conversion_rate`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(toInsert.map(r => ({ currency: r.currency, rate: r.rate }))),
+    });
+  }
+}
+
+async function dxFetchFares(campaign, token) {
+  const fields = [
+    'origin.iata_code', 'origin.main_image',
+    'origin.translations.name', 'origin.translations.languages_code',
+    'origin.country.code', 'origin.country.currency_code',
+    'destination.iata_code', 'destination.main_image',
+    'destination.translations.name', 'destination.translations.languages_code',
+    'destination.country.code', 'destination.country.currency_code',
+    'departure', 'return', 'price', 'price_before', 'taxes',
+  ];
+  const params = new URLSearchParams([
+    ...fields.map(f => ['fields[]', f]),
+    ['filter[campaign][_eq]', campaign],
+    ['limit', '-1'],
+  ]);
+  const res = await fetch(`${DX_BASE}/items/custom_fare?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const msg = body.errors?.[0]?.message || 'Sin detalles';
+    throw new Error(`GET fares: ${res.status} — ${msg}`);
+  }
+  const { data } = await res.json();
+  return data;
+}
+
+async function dxFetchRates(token) {
+  const res = await fetch(`${DX_BASE}/items/currency_conversion_rate?fields[]=currency&fields[]=rate&limit=-1`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const msg = body.errors?.[0]?.message || 'Sin detalles';
+    throw new Error(`GET rates: ${res.status} — ${msg}`);
+  }
+  const { data } = await res.json();
+  const conv = {};
+  data.forEach(r => { conv[r.currency] = r.rate; });
+  return conv;
+}
+
+// ================================================================
+// DIRECTUS SYNC — HTML GENERATION
+// ================================================================
+
+function dxGetStorefront(countryCode) {
+  return DX_COUNTRY_TO_SF[(countryCode || '').toUpperCase()] || 'gs';
+}
+
+function dxGetName(dest, lang) {
+  if (!dest?.translations?.length) return dest?.iata_code || '';
+  const t = dest.translations.find(t =>
+    t.languages_code && t.languages_code.toLowerCase().startsWith(lang.toLowerCase())
+  );
+  return t?.name || dest.translations[0]?.name || dest?.iata_code || '';
+}
+
+function dxConvertFmt(priceUSD, currencyCode, rates) {
+  if (currencyCode === 'USD' || !rates[currencyCode]) {
+    return fareFmtNum(Math.ceil(priceUSD), 'USD');
+  }
+  return fareFmtNum(Math.ceil(priceUSD / rates[currencyCode]), currencyCode);
+}
+
+function buildDirectusFaresForLang(fares, rates, lang, campaign) {
+  const blocks = [];
+
+  Object.entries(STOREFRONTS).forEach(([country, langs]) => {
+    if (!langs.includes(lang)) return;
+
+    const sfFares = fares.filter(f => {
+      const sf = dxGetStorefront(f.origin?.country?.code);
+      return country === 'gs' ? sf === 'gs' : sf === country;
+    });
+
+    const innerHTML = sfFares.length
+      ? `<div class="container mx-auto">\n<ol class="grid justify-center gap-3 pb-8" style="grid-template-columns: repeat(auto-fit, minmax(376px, 1fr));">\n${sfFares.map(f => buildDirectusFareCard(f, lang, country, rates)).join('\n')}\n</ol>\n</div>`
+      : `<div class="container mx-auto">\n<p></p>\n</div>`;
+
+    blocks.push(`<div class="hidden" data-country="${country}" data-lang="${lang}">\n${innerHTML}\n</div>`);
+  });
+
+  const disclaimer = buildTcDisclaimerParagraph(campaign, lang);
+
+  const scriptDeleteAll = `<script type="text/javascript">
+(function deleteAll() {
+  const x = document.querySelectorAll(".__pfs, .__bss, .__psc");
+  for (i = 0; i < x.length; i++) { x[i].classList.remove('__pfs', '__bss', '__psc'); }
+})();
+<\/script>`;
+
+  const scriptDataLayer = `<script>
+setTimeout(() => {
+  const country = EM?.dataLayer?.[0]?.page?.countryIsoCode?.toLowerCase() || "gs";
+  const lang    = EM?.dataLayer?.[0]?.page?.languageIsoCode?.toLowerCase() || "${lang}";
+  const allDivs = document.querySelectorAll('div[data-country][data-lang]');
+  allDivs.forEach((div) => {
+    const match =
+      div.getAttribute('data-country')?.toLowerCase() === country &&
+      div.getAttribute('data-lang')?.toLowerCase()    === lang;
+    div.classList.toggle('hidden', !match);
+  });
+}, 3000);
+<\/script>`;
+
+  return `<div id="app">\n${blocks.join('\n')}\n</div>\n${disclaimer}\n${scriptDeleteAll}\n${scriptDataLayer}`;
+}
+
+function buildDirectusFareCard(fare, lang, country, rates) {
+  const connWord = lang === 'es' ? ' a'           : lang === 'en' ? ' to'       : ' para';
+  const tripType = lang === 'es' ? 'Ida y Vuelta' : lang === 'en' ? 'Roundtrip' : 'Ida e volta';
+  const fromWord = lang === 'es' ? 'desde'        : lang === 'en' ? 'from'      : 'de';
+  const taxLabel = lang === 'en' ? 'Taxes included'
+    : lang === 'es' ? 'Impuestos incluidos de'
+    : 'Impostos inclu&iacute;dos em';
+
+  const currency = SF_CURRENCY[country] || 'USD';
+  const oriIATA  = fare.origin?.iata_code      || '';
+  const desIATA  = fare.destination?.iata_code || '';
+  const oriName  = dxGetName(fare.origin, lang);
+  const desName  = dxGetName(fare.destination, lang);
+  const imgUUID  = fare.destination?.main_image || '1b589009-eb2d-466d-adb4-df5c872e76fa';
+  const imgSrc   = `https://cm-marketing.directus.app/assets/${imgUUID}`;
+
+  const price   = dxConvertFmt(fare.price, currency, rates);
+  const pbefore = fare.price_before ? dxConvertFmt(fare.price_before, currency, rates) : null;
+  const taxes   = fare.taxes        ? dxConvertFmt(fare.taxes, currency, rates)        : null;
+
+  // Directus may return full datetime — take only YYYY-MM-DD
+  const depDate = (fare.departure || '').substring(0, 10);
+  const retDate = (fare.return    || '').substring(0, 10);
+  const dep = fareFormatDate(depDate, lang);
+  const ret = fareFormatDate(retDate, lang);
+
+  const href = `https://shopping.copaair.com/?roundtrip=true&amp;adults=1&amp;children=0&amp;infants=0&amp;sf=${country}&amp;langid=${lang}&amp;date1=${depDate}&amp;date2=${retDate}&amp;promocode=&amp;area1=${oriIATA}&amp;area2=${desIATA}&amp;advanced_air_search=false&amp;flexible_dates_v2=false&amp;origin=EM`;
+
+  const pbSpan = pbefore
+    ? `<span class="font-normal text-d1 self-end font-suisse text-grey-600 line-through ">${currency}&nbsp;${pbefore}</span>`
+    : '';
+  const taxSpan = taxes
+    ? `<span class="font-suisse flex gap-1 justify-end font-normal text-d3 text-grey-600  s-TlaWMsF1F1vX"><strong>${taxLabel}</strong> ${currency}&nbsp;${taxes}</span>`
+    : '';
+
+  return `<li class="custom-fares h-full w-full max-w-[400px]"><a class="grid grid-cols-[8px_116px_auto_8px] grid-rows-[8px_auto_auto_8px] overflow-hidden rounded-2xl outline outline-1 outline-grey-300 hover:outline-2 hover:outline-primary-ultralight focus:outline-2 focus:outline-primary-ultralight" role="button" href="${href}" data-oac="${oriIATA}" data-dac="${desIATA}" data-departure-date="${depDate}" data-return-date="${retDate}" data-price="USD ${fare.price}"><img class="col-start-1 col-end-3 row-span-full h-full w-full object-cover" loading="lazy" alt="${desName.replace(/&[^;]+;/g, '')}" src="${imgSrc}" /> <span class="col-start-3 col-end-3 row-start-2 row-end-2 mx-2 mb-2 flex flex-col gap-1"><span class="text-b font-bold flex h-auto flex-col font-gilroy text-primary"><span>${oriName} (${oriIATA})${connWord}</span> <span>${desName} (${desIATA})</span></span> <span class="flex h-auto items-center gap-2"><img src="https://cm-marketing.directus.app/assets/5c8e2708-d6e2-4de0-ad47-60b94c7f512f" class="h-[10.3px] w-[11.6px]" alt="date" /> <span class="font-suisse font-normal text-d3 text-grey-600"> ${tripType}<br />${dep} - ${ret}</span></span></span> <span class="col-start-3 col-end-3 row-start-3 row-end-3 mx-2 mt-2"><span class="flex grid-rows-subgrid flex-col items-end">${pbSpan}<span class="gap-y-2"><span class="font-suisse font-normal text-d3 text-grey-600 ">${fromWord} <span class="text-u2 font-gilroy font-bold text-primary lg:text-u1 ">${currency}&nbsp;${price}<sup>*</sup></span></span></span></span>${taxSpan}</span></a></li>`;
+}
+
+// ================================================================
+// DIRECTUS SYNC — COPY
+// ================================================================
+function copyDirectusLang(lang) {
+  const ta  = document.getElementById(`dxOut-${lang}`);
+  const btn = document.querySelector(`#dxCard-${lang} .btn-copy`);
+  navigator.clipboard.writeText(ta.value).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copiado!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// ================================================================
+// TC CONVERTER — DRAG & DROP
+// ================================================================
+const cvuz = document.getElementById('cvuz');
+cvuz.addEventListener('dragover', e => { e.preventDefault(); cvuz.classList.add('drag'); });
+cvuz.addEventListener('dragleave', () => cvuz.classList.remove('drag'));
+cvuz.addEventListener('drop', e => {
+  e.preventDefault();
+  cvuz.classList.remove('drag');
+  handleConverterFile({ target: { files: e.dataTransfer.files } });
+});
+
+// ================================================================
+// TC CONVERTER — FILE HANDLER
+// ================================================================
+async function handleConverterFile(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  if (ext === 'docx') {
+    const reader = new FileReader();
+    reader.onload = async e => {
+      try {
+        const zip = await new JSZip().loadAsync(e.target.result);
+        const docEntry = zip.file('word/document.xml');
+        if (!docEntry) { setConverterStatus('✗ DOCX inválido: no se encontró document.xml', 'e'); return; }
+        const docXml = await docEntry.async('string');
+        const text = parseDOCXToText(docXml);
+        document.getElementById('cvText').value = text;
+        document.getElementById('cvfname').textContent = '✓ ' + file.name;
+        document.getElementById('cvfname').style.display = 'block';
+        cvuz.classList.add('ok');
+        setConverterStatus('✓ DOCX cargado — revisa el texto y ajusta si es necesario', 's');
+      } catch (err) {
+        setConverterStatus('✗ Error al leer DOCX: ' + err.message, 'e');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  } else if (ext === 'txt') {
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('cvText').value = e.target.result;
+      document.getElementById('cvfname').textContent = '✓ ' + file.name;
+      document.getElementById('cvfname').style.display = 'block';
+      cvuz.classList.add('ok');
+      setConverterStatus('✓ Archivo de texto cargado', 's');
+    };
+    reader.readAsText(file, 'UTF-8');
+  } else {
+    setConverterStatus('✗ Formato no soportado. Usa DOCX o TXT', 'e');
+  }
+}
+
+// ================================================================
+// PARSE DOCX XML → MARKED-UP PLAIN TEXT
+// Heading1/Title → "## text", Heading2/3 → "### text", List → "• text"
+// ================================================================
+function parseDOCXToText(docXml) {
+  const unesc = s => s
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#x[0-9A-Fa-f]+;/g, '');
+
+  const pMatches = docXml.match(/<w:p[ >][\s\S]*?<\/w:p>/g) || [];
+  const lines = [];
+
+  for (const pXml of pMatches) {
+    const styleM = pXml.match(/w:pStyle\s+w:val="([^"]+)"/);
+    const style = styleM ? styleM[1] : '';
+    const isList = /<w:numPr\b/.test(pXml) || /^ListParagraph$/i.test(style) || /^List\b/i.test(style);
+
+    const texts = [];
+    const tRe = /<w:t(?:[^>]*)>([\s\S]*?)<\/w:t>/g;
+    let m;
+    while ((m = tRe.exec(pXml)) !== null) texts.push(unesc(m[1]));
+    const text = texts.join('').trim();
+
+    if (!text) { lines.push(''); continue; }
+
+    if (/^(Title|Heading\s*1)$/i.test(style)) {
+      lines.push(`## ${text}`);
+    } else if (/^Heading/i.test(style)) {
+      lines.push(`### ${text}`);
+    } else if (isList) {
+      lines.push(`• ${text}`);
+    } else {
+      lines.push(text);
+    }
+  }
+  return lines.join('\n');
+}
+
+// ================================================================
+// PARSE TEXT → BLOCKS
+// Supports explicit markers (## / ### / •) and plain-text heuristics
+// ================================================================
+function parseTextToBlocks(rawText) {
+  const blocks = [];
+  const lines = rawText.split('\n');
+  let currentList = [];
+  let prevEmpty = true;
+
+  const flushList = () => {
+    if (currentList.length) {
+      blocks.push({ type: 'ul', items: [...currentList] });
+      currentList = [];
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    if (!line) {
+      flushList();
+      prevEmpty = true;
+      continue;
+    }
+
+    // Explicit markers from DOCX parser
+    if (line.startsWith('## ')) {
+      flushList();
+      blocks.push({ type: 'h2', text: line.slice(3).trim() });
+      prevEmpty = false;
+      continue;
+    }
+    if (line.startsWith('### ')) {
+      flushList();
+      blocks.push({ type: 'h3', text: line.slice(4).trim() });
+      prevEmpty = false;
+      continue;
+    }
+
+    // Bullet / numbered list items
+    const bulletMatch = line.match(/^[•·\-\*]\s+(.+)/);
+    const numberedMatch = !bulletMatch && line.match(/^\d+[\.\)]\s+(.+)/);
+    if (bulletMatch || numberedMatch) {
+      currentList.push((bulletMatch || numberedMatch)[1]);
+      prevEmpty = false;
+      continue;
+    }
+
+    flushList();
+
+    // Heuristic headings for plain-text input
+    const isAllCaps =
+      line.length >= 4 &&
+      line === line.toUpperCase() &&
+      /[A-ZÁÉÍÓÚÑ]/.test(line) &&
+      !/\d{2}[\/\-]\d{2}/.test(line);
+
+    const nextLine = lines[i + 1] !== undefined ? lines[i + 1].trim() : '';
+    const nextEmpty = nextLine === '';
+    const isIsolatedShort =
+      line.length <= 90 &&
+      !line.match(/[\.;,]$/) &&
+      prevEmpty &&
+      nextEmpty;
+
+    if (isAllCaps || isIsolatedShort) {
+      blocks.push({ type: 'h3', text: line });
+    } else {
+      blocks.push({ type: 'p', text: line });
+    }
+
+    prevEmpty = false;
+  }
+
+  flushList();
+  return blocks;
+}
+
+// ================================================================
+// BLOCKS → AIRTRFX HTML
+// ================================================================
+function blocksToAirTRFX(blocks, divId) {
+  const CCP = '{&quot;134233117&quot;:false,&quot;134233118&quot;:false,&quot;335559738&quot;:240,&quot;335559739&quot;:240}';
+  const e = encH;
+
+  let html = `<div class="cm-design-system styles-override" id="${e(divId)}" style="padding-top: 80px;">\n`;
+
+  for (const block of blocks) {
+    switch (block.type) {
+      case 'h2':
+        html += `<h2>${e(block.text)}</h2>\n`;
+        break;
+      case 'h3':
+        html += `<h3>${e(block.text)}</h3>\n`;
+        break;
+      case 'bold':
+        html += `<p><strong>${e(block.text)}</strong></p>\n`;
+        break;
+      case 'p':
+        html += `<p><span data-contrast="auto">${e(block.text)}</span><span data-ccp-props="${CCP}">&nbsp;</span></p>\n`;
+        break;
+      case 'ul':
+        html += `<ul>\n`;
+        block.items.forEach(item => { html += `<li>${e(item)}</li>\n`; });
+        html += `</ul>\n`;
+        break;
+    }
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ================================================================
+// TC CONVERTER — MAIN GENERATE
+// ================================================================
+function convertTCToHTML() {
+  const divId = document.getElementById('cvDivId').value.trim();
+  if (!divId) {
+    alert('Ingresa el ID del bloque (anchor) antes de continuar.\nEjemplo: domCUN');
+    document.getElementById('cvDivId').focus();
+    return;
+  }
+
+  const text = document.getElementById('cvText').value.trim();
+  if (!text) {
+    alert('Sube un archivo o pega el texto de los T&C antes de convertir.');
+    return;
+  }
+
+  const blocks = parseTextToBlocks(text);
+  if (!blocks.length) {
+    alert('No se encontró contenido para convertir.');
+    return;
+  }
+
+  const html = blocksToAirTRFX(blocks, divId);
+
+  document.getElementById('cvOut').value = html;
+  const pCount = blocks.filter(b => b.type === 'p').length;
+  const hCount = blocks.filter(b => b.type === 'h2' || b.type === 'h3').length;
+  const lCount = blocks.filter(b => b.type === 'ul').reduce((a, b) => a + b.items.length, 0);
+  document.getElementById('cvMeta').textContent =
+    `${html.length.toLocaleString()} car · ${hCount} títulos · ${pCount} párrafos · ${lCount} ítems`;
+  document.getElementById('cvPh').style.display = 'none';
+  document.getElementById('cvCard').style.display = 'block';
+}
+
+// ================================================================
+// TC CONVERTER — COPY & STATUS
+// ================================================================
+function copyConverted() {
+  const ta = document.getElementById('cvOut');
+  const btn = document.getElementById('cvCopyBtn');
+  navigator.clipboard.writeText(ta.value).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copiado!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+function setConverterStatus(msg, type) {
+  document.getElementById('cvStatus').innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
 }

@@ -16,6 +16,12 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script
+      src="config.js"
+      onerror="
+        console.warn('config.js not found — create it from config.example.js')
+      "
+    ></script>
   </head>
   <body>
     <!-- ============================================================
@@ -37,240 +43,278 @@
      TAB NAV
      ============================================================ -->
     <nav class="tabs-nav">
-      <button class="tab-btn active" id="tab-btn-tc" onclick="switchTab('tc')">📋 T&amp;C Generator</button>
-      <button class="tab-btn" id="tab-btn-fares" onclick="switchTab('fares')">✈️ Tarifas</button>
+      <button class="tab-btn active" id="tab-btn-tc" onclick="switchTab('tc')">
+        📋 T&amp;C Generator
+      </button>
+      <button class="tab-btn" id="tab-btn-fares" onclick="switchTab('fares')">
+        ✈️ Tarifas
+      </button>
+      <button
+        class="tab-btn"
+        id="tab-btn-converter"
+        onclick="switchTab('converter')"
+      >
+        📝 TC Converter
+      </button>
+      <button
+        class="tab-btn"
+        id="tab-btn-directus"
+        onclick="switchTab('directus')"
+      >
+        📊 Directus Sync
+      </button>
     </nav>
 
     <!-- ============================================================
      TAB: T&C GENERATOR
      ============================================================ -->
     <div id="tab-tc" class="tab-panel">
-    <div class="layout">
-      <!-- ==================== LEFT: CONFIG ==================== -->
-      <div class="cfg">
-        <div class="cfg-h"><h2>⚙️ Configuración</h2></div>
-        <div class="cfg-b">
-          <!-- Step 1: Upload Excel -->
-          <div class="step">
-            <div class="slbl">
-              <div class="sn">1</div>
-              <span>Excel de Tarifas</span>
-            </div>
-            <div
-              class="upload"
-              id="uz"
-              onclick="document.getElementById('fi').click()"
-            >
-              <div class="icon">📊</div>
-              <p>Clic o arrastra el archivo</p>
-              <p style="font-size: 10px; color: #9ca3af; margin-top: 2px">
-                Sheet 1: Tarifas · Sheet 2: Tasas de cambio
-              </p>
-              <div class="fname" id="fname"></div>
-            </div>
-            <input
-              type="file"
-              id="fi"
-              accept=".xlsx,.xls"
-              onchange="handleFile(event)"
-            />
-            <div id="lstatus"></div>
-          </div>
-
-          <div class="div"></div>
-
-          <!-- Step 2: Campaign data -->
-          <div class="step">
-            <div class="slbl">
-              <div class="sn">2</div>
-              <span>Datos de la Campaña</span>
-            </div>
-            <div style="margin-bottom: 8px">
-              <label>Nombre de la campaña</label>
+      <div class="layout">
+        <!-- ==================== LEFT: CONFIG ==================== -->
+        <div class="cfg">
+          <div class="cfg-h"><h2>⚙️ Configuración</h2></div>
+          <div class="cfg-b">
+            <!-- Step 1: Upload Excel -->
+            <div class="step">
+              <div class="slbl">
+                <div class="sn">1</div>
+                <span>Excel de Tarifas</span>
+              </div>
+              <div
+                class="upload"
+                id="uz"
+                onclick="document.getElementById('fi').click()"
+              >
+                <div class="icon">📊</div>
+                <p>Clic o arrastra el archivo</p>
+                <p style="font-size: 10px; color: #9ca3af; margin-top: 2px">
+                  Sheet 1: Tarifas · Sheet 2: Tasas de cambio
+                </p>
+                <div class="fname" id="fname"></div>
+              </div>
               <input
-                type="text"
-                id="campName"
-                placeholder="ej: Destino del Mes Cancún"
+                type="file"
+                id="fi"
+                accept=".xlsx,.xls"
+                onchange="handleFile(event)"
               />
-              <p class="hint">Título: Tarifas Promocionales | {nombre}</p>
+              <div id="lstatus"></div>
             </div>
-            <div class="row2">
-              <div>
-                <label>ID del div (anchor)</label>
+
+            <div class="div"></div>
+
+            <!-- Step 2: Campaign data -->
+            <div class="step">
+              <div class="slbl">
+                <div class="sn">2</div>
+                <span>Datos de la Campaña</span>
+              </div>
+              <div style="margin-bottom: 8px">
+                <label>Nombre de la campaña</label>
                 <input
                   type="text"
-                  id="divId"
-                  placeholder="domCUN"
-                  value="domCUN"
+                  id="campName"
+                  placeholder="ej: Destino del Mes Cancún"
                 />
+                <p class="hint">Título: Tarifas Promocionales | {nombre}</p>
               </div>
-              <div>
-                <label>ID para los archivos</label>
-                <input
-                  type="text"
-                  id="slug"
-                  placeholder="ViajaMejor"
-                  value="CUN"
-                />
+              <div class="row2">
+                <div>
+                  <label>ID del div (anchor)</label>
+                  <input
+                    type="text"
+                    id="divId"
+                    placeholder="domCUN"
+                    value="domCUN"
+                  />
+                </div>
+                <div>
+                  <label>ID para los archivos</label>
+                  <input
+                    type="text"
+                    id="slug"
+                    placeholder="ViajaMejor"
+                    value="CUN"
+                  />
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="div"></div>
-
-          <!-- Step 3: Dates -->
-          <div class="step">
-            <div class="slbl">
-              <div class="sn">3</div>
-              <span>Vigencia de la Promoción</span>
-            </div>
-            <p class="hint" style="margin-bottom: 8px">
-              Se auto-completan del Excel (col X/Y/Z/AB). Puedes ajustar.
-            </p>
-            <div class="row2" style="margin-bottom: 7px">
-              <div>
-                <label>Primera fecha compra</label>
-                <input type="date" id="fp" />
-              </div>
-              <div>
-                <label>Última fecha compra</label>
-                <input type="date" id="lp" />
-              </div>
-            </div>
-            <div class="row2">
-              <div>
-                <label>Primera fecha vuelo</label>
-                <input type="date" id="ff" />
-              </div>
-              <div>
-                <label>Última fecha vuelo</label>
-                <input type="date" id="lf" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Routes preview (shown after file load) -->
-          <div id="routesSec" style="display: none">
             <div class="div"></div>
-            <p style="font-size: 11px; font-weight: 600; color: #374151">
-              📍 Rutas
-              <span id="rCount" style="font-weight: 400; color: #9ca3af"></span>
-            </p>
-            <div class="routes-wrap" id="rTags"></div>
-          </div>
 
-          <!-- Rates preview (shown after file load) -->
-          <div id="ratesSec" style="display: none">
+            <!-- Step 3: Dates -->
+            <div class="step">
+              <div class="slbl">
+                <div class="sn">3</div>
+                <span>Vigencia de la Promoción</span>
+              </div>
+              <p class="hint" style="margin-bottom: 8px">
+                Se auto-completan del Excel (col X/Y/Z/AB). Puedes ajustar.
+              </p>
+              <div class="row2" style="margin-bottom: 7px">
+                <div>
+                  <label>Primera fecha compra</label>
+                  <input type="date" id="fp" />
+                </div>
+                <div>
+                  <label>Última fecha compra</label>
+                  <input type="date" id="lp" />
+                </div>
+              </div>
+              <div class="row2">
+                <div>
+                  <label>Primera fecha vuelo</label>
+                  <input type="date" id="ff" />
+                </div>
+                <div>
+                  <label>Última fecha vuelo</label>
+                  <input type="date" id="lf" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Routes preview (shown after file load) -->
+            <div id="routesSec" style="display: none">
+              <div class="div"></div>
+              <p style="font-size: 11px; font-weight: 600; color: #374151">
+                📍 Rutas
+                <span
+                  id="rCount"
+                  style="font-weight: 400; color: #9ca3af"
+                ></span>
+              </p>
+              <div class="routes-wrap" id="rTags"></div>
+            </div>
+
+            <!-- Rates preview (shown after file load) -->
+            <div id="ratesSec" style="display: none">
+              <div class="div"></div>
+              <p
+                style="
+                  font-size: 11px;
+                  font-weight: 600;
+                  color: #374151;
+                  margin-bottom: 5px;
+                "
+              >
+                💱 Tasas de cambio
+                <span
+                  id="rDate"
+                  style="font-weight: 400; color: #9ca3af; font-size: 10px"
+                ></span>
+              </p>
+              <div class="rates-grid" id="rList"></div>
+            </div>
+
             <div class="div"></div>
-            <p
-              style="
-                font-size: 11px;
-                font-weight: 600;
-                color: #374151;
-                margin-bottom: 5px;
-              "
+            <button
+              class="btn-gen"
+              id="genBtn"
+              onclick="generateAll()"
+              disabled
             >
-              💱 Tasas de cambio
-              <span
-                id="rDate"
-                style="font-weight: 400; color: #9ca3af; font-size: 10px"
-              ></span>
+              ✨ Generar T&C
+            </button>
+          </div>
+        </div>
+        <!-- /cfg -->
+
+        <!-- ==================== RIGHT: LANGUAGE CARDS ==================== -->
+        <div class="cards" id="cardsArea">
+          <!-- Placeholder shown before generation -->
+          <div class="placeholder" id="ph">
+            <div class="bi">📝</div>
+            <p>
+              Sube el Excel, completa los datos<br />
+              y haz clic en <strong>Generar T&C</strong>.<br /><br />
+              <span style="font-size: 12px">
+                Se generará <strong>un solo T&C por campaña</strong><br />
+                con todas las rutas incluidas.
+              </span>
             </p>
-            <div class="rates-grid" id="rList"></div>
           </div>
 
-          <div class="div"></div>
-          <button class="btn-gen" id="genBtn" onclick="generateAll()" disabled>
-            ✨ Generar T&C
-          </button>
+          <!-- Español -->
+          <div class="lang-card" id="card-es">
+            <div class="lc-header">
+              <div class="lc-title">
+                <span class="flag">🇪🇸</span>
+                <span class="name">Español</span>
+                <span class="meta" id="meta-es"></span>
+              </div>
+              <div class="lc-actions">
+                <button class="btn-copy" id="cp-es" onclick="copyLang('es')">
+                  📋 Copiar HTML
+                </button>
+                <button
+                  class="btn-docx"
+                  id="dl-es"
+                  onclick="downloadDOCX('es')"
+                >
+                  📥 Descargar DOCX
+                </button>
+              </div>
+            </div>
+            <div class="lc-body">
+              <textarea id="out-es" readonly></textarea>
+            </div>
+          </div>
+
+          <!-- English -->
+          <div class="lang-card" id="card-en">
+            <div class="lc-header">
+              <div class="lc-title">
+                <span class="flag">🇺🇸</span>
+                <span class="name">English</span>
+                <span class="meta" id="meta-en"></span>
+              </div>
+              <div class="lc-actions">
+                <button class="btn-copy" id="cp-en" onclick="copyLang('en')">
+                  📋 Copy HTML
+                </button>
+                <button
+                  class="btn-docx"
+                  id="dl-en"
+                  onclick="downloadDOCX('en')"
+                >
+                  📥 Download DOCX
+                </button>
+              </div>
+            </div>
+            <div class="lc-body">
+              <textarea id="out-en" readonly></textarea>
+            </div>
+          </div>
+
+          <!-- Português -->
+          <div class="lang-card" id="card-pt">
+            <div class="lc-header">
+              <div class="lc-title">
+                <span class="flag">🇧🇷</span>
+                <span class="name">Português</span>
+                <span class="meta" id="meta-pt"></span>
+              </div>
+              <div class="lc-actions">
+                <button class="btn-copy" id="cp-pt" onclick="copyLang('pt')">
+                  📋 Copiar HTML
+                </button>
+                <button
+                  class="btn-docx"
+                  id="dl-pt"
+                  onclick="downloadDOCX('pt')"
+                >
+                  📥 Baixar DOCX
+                </button>
+              </div>
+            </div>
+            <div class="lc-body">
+              <textarea id="out-pt" readonly></textarea>
+            </div>
+          </div>
         </div>
+        <!-- /cards -->
       </div>
-      <!-- /cfg -->
-
-      <!-- ==================== RIGHT: LANGUAGE CARDS ==================== -->
-      <div class="cards" id="cardsArea">
-        <!-- Placeholder shown before generation -->
-        <div class="placeholder" id="ph">
-          <div class="bi">📝</div>
-          <p>
-            Sube el Excel, completa los datos<br />
-            y haz clic en <strong>Generar T&C</strong>.<br /><br />
-            <span style="font-size: 12px">
-              Se generará <strong>un solo T&C por campaña</strong><br />
-              con todas las rutas incluidas.
-            </span>
-          </p>
-        </div>
-
-        <!-- Español -->
-        <div class="lang-card" id="card-es">
-          <div class="lc-header">
-            <div class="lc-title">
-              <span class="flag">🇪🇸</span>
-              <span class="name">Español</span>
-              <span class="meta" id="meta-es"></span>
-            </div>
-            <div class="lc-actions">
-              <button class="btn-copy" id="cp-es" onclick="copyLang('es')">
-                📋 Copiar HTML
-              </button>
-              <button class="btn-docx" id="dl-es" onclick="downloadDOCX('es')">
-                📥 Descargar DOCX
-              </button>
-            </div>
-          </div>
-          <div class="lc-body">
-            <textarea id="out-es" readonly></textarea>
-          </div>
-        </div>
-
-        <!-- English -->
-        <div class="lang-card" id="card-en">
-          <div class="lc-header">
-            <div class="lc-title">
-              <span class="flag">🇺🇸</span>
-              <span class="name">English</span>
-              <span class="meta" id="meta-en"></span>
-            </div>
-            <div class="lc-actions">
-              <button class="btn-copy" id="cp-en" onclick="copyLang('en')">
-                📋 Copy HTML
-              </button>
-              <button class="btn-docx" id="dl-en" onclick="downloadDOCX('en')">
-                📥 Download DOCX
-              </button>
-            </div>
-          </div>
-          <div class="lc-body">
-            <textarea id="out-en" readonly></textarea>
-          </div>
-        </div>
-
-        <!-- Português -->
-        <div class="lang-card" id="card-pt">
-          <div class="lc-header">
-            <div class="lc-title">
-              <span class="flag">🇧🇷</span>
-              <span class="name">Português</span>
-              <span class="meta" id="meta-pt"></span>
-            </div>
-            <div class="lc-actions">
-              <button class="btn-copy" id="cp-pt" onclick="copyLang('pt')">
-                📋 Copiar HTML
-              </button>
-              <button class="btn-docx" id="dl-pt" onclick="downloadDOCX('pt')">
-                📥 Baixar DOCX
-              </button>
-            </div>
-          </div>
-          <div class="lc-body">
-            <textarea id="out-pt" readonly></textarea>
-          </div>
-        </div>
-      </div>
-      <!-- /cards -->
-    </div>
-    <!-- /layout -->
+      <!-- /layout -->
     </div>
     <!-- /tab-tc -->
 
@@ -278,143 +322,504 @@
      TAB: TARIFAS GENERATOR
      ============================================================ -->
     <div id="tab-fares" class="tab-panel hidden">
-    <div class="layout">
-
-      <!-- ==================== LEFT: FARES CONFIG ==================== -->
-      <div class="cfg">
-        <div class="cfg-h"><h2>⚙️ Configuración de Tarifas</h2></div>
-        <div class="cfg-b">
-
-          <!-- Step 1: Upload Excel -->
-          <div class="step">
-            <div class="slbl">
-              <div class="sn">1</div>
-              <span>Excel de Tarifas</span>
+      <div class="layout">
+        <!-- ==================== LEFT: FARES CONFIG ==================== -->
+        <div class="cfg">
+          <div class="cfg-h"><h2>⚙️ Configuración de Tarifas</h2></div>
+          <div class="cfg-b">
+            <!-- Step 1: Upload Excel -->
+            <div class="step">
+              <div class="slbl">
+                <div class="sn">1</div>
+                <span>Excel de Tarifas</span>
+              </div>
+              <div
+                class="upload"
+                id="fuz"
+                onclick="document.getElementById('ffi').click()"
+              >
+                <div class="icon">📊</div>
+                <p>Clic o arrastra el archivo</p>
+                <p style="font-size: 10px; color: #9ca3af; margin-top: 2px">
+                  Status · Campaign · Origin · Destination · Price Before ·
+                  Price · Departure · Return · Taxes
+                </p>
+                <div class="fname" id="ffname" style="display: none"></div>
+              </div>
+              <input
+                type="file"
+                id="ffi"
+                accept=".xlsx,.xls"
+                onchange="handleFaresFile(event)"
+              />
+              <div id="flstatus"></div>
+              <div
+                id="faresPreview"
+                style="display: none; margin-top: 8px"
+              ></div>
             </div>
-            <div class="upload" id="fuz" onclick="document.getElementById('ffi').click()">
-              <div class="icon">📊</div>
-              <p>Clic o arrastra el archivo</p>
-              <p style="font-size:10px;color:#9ca3af;margin-top:2px">
-                Status · Campaign · Origin · Destination · Price Before · Price · Departure · Return · Taxes
+
+            <div class="div"></div>
+
+            <!-- Step 2: Campaign -->
+            <div class="step">
+              <div class="slbl">
+                <div class="sn">2</div>
+                <span>Campaña</span>
+              </div>
+              <label>Nombre de la campaña (filtro)</label>
+              <input type="text" id="faresCampaign" placeholder="ej: dom-apr" />
+              <p class="hint">
+                Filtra las filas por la columna Campaign del Excel
               </p>
-              <div class="fname" id="ffname" style="display:none"></div>
             </div>
-            <input type="file" id="ffi" accept=".xlsx,.xls" onchange="handleFaresFile(event)" />
-            <div id="flstatus"></div>
-            <div id="faresPreview" style="display:none;margin-top:8px"></div>
+
+            <div class="div"></div>
+
+            <button
+              class="btn-gen"
+              id="faresGenBtn"
+              onclick="generateFares()"
+              disabled
+            >
+              ✨ Generar HTML de Tarifas
+            </button>
           </div>
-
-          <div class="div"></div>
-
-          <!-- Step 2: Campaign -->
-          <div class="step">
-            <div class="slbl">
-              <div class="sn">2</div>
-              <span>Campaña</span>
-            </div>
-            <label>Nombre de la campaña (filtro)</label>
-            <input type="text" id="faresCampaign" placeholder="ej: dom-apr" />
-            <p class="hint">Filtra las filas por la columna Campaign del Excel</p>
-          </div>
-
-          <div class="div"></div>
-
-          <!-- Step 3: T&C link -->
-          <div class="step">
-            <div class="slbl">
-              <div class="sn">3</div>
-              <span>Enlace a T&amp;C</span>
-            </div>
-            <label>URL / anchor de los Términos y Condiciones</label>
-            <input type="text" id="tcAnchor" placeholder="vuelos-terminos-y-condiciones#domCUN" />
-            <p class="hint">Aparece en el disclaimer (*) al pie del bloque</p>
-          </div>
-
-          <div class="div"></div>
-
-          <button class="btn-gen" id="faresGenBtn" onclick="generateFares()" disabled>
-            ✨ Generar HTML de Tarifas
-          </button>
         </div>
+        <!-- /fares cfg -->
+
+        <!-- ==================== RIGHT: FARES OUTPUT ==================== -->
+        <div class="cards" id="faresOutputArea">
+          <div class="placeholder" id="faresPh">
+            <div class="bi">✈️</div>
+            <p>
+              Sube el Excel de tarifas,<br />selecciona la campaña<br />y genera
+              el HTML.<br /><br />
+              <span style="font-size: 12px">
+                Se generan <strong>3 assets independientes</strong><br />
+                (ES · EN · PT) listos para AirTRFX.
+              </span>
+            </p>
+          </div>
+
+          <!-- Español -->
+          <div class="lang-card" id="faresCard-es" style="display: none">
+            <div class="lc-header">
+              <div class="lc-title">
+                <span class="flag">🇪🇸</span>
+                <span class="name">Español — AirTRFX asset</span>
+                <span class="meta" id="faresMeta-es"></span>
+              </div>
+              <div class="lc-actions">
+                <button
+                  class="btn-copy"
+                  id="cpFares-es"
+                  onclick="copyFares('es')"
+                >
+                  📋 Copiar HTML
+                </button>
+              </div>
+            </div>
+            <div class="lc-body">
+              <textarea
+                id="outFares-es"
+                readonly
+                style="height: 300px; font-size: 10px"
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- English -->
+          <div class="lang-card" id="faresCard-en" style="display: none">
+            <div class="lc-header">
+              <div class="lc-title">
+                <span class="flag">🇺🇸</span>
+                <span class="name">English — AirTRFX asset</span>
+                <span class="meta" id="faresMeta-en"></span>
+              </div>
+              <div class="lc-actions">
+                <button
+                  class="btn-copy"
+                  id="cpFares-en"
+                  onclick="copyFares('en')"
+                >
+                  📋 Copy HTML
+                </button>
+              </div>
+            </div>
+            <div class="lc-body">
+              <textarea
+                id="outFares-en"
+                readonly
+                style="height: 300px; font-size: 10px"
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- Português -->
+          <div class="lang-card" id="faresCard-pt" style="display: none">
+            <div class="lc-header">
+              <div class="lc-title">
+                <span class="flag">🇧🇷</span>
+                <span class="name">Português — AirTRFX asset</span>
+                <span class="meta" id="faresMeta-pt"></span>
+              </div>
+              <div class="lc-actions">
+                <button
+                  class="btn-copy"
+                  id="cpFares-pt"
+                  onclick="copyFares('pt')"
+                >
+                  📋 Copiar HTML
+                </button>
+              </div>
+            </div>
+            <div class="lc-body">
+              <textarea
+                id="outFares-pt"
+                readonly
+                style="height: 300px; font-size: 10px"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+        <!-- /fares output -->
       </div>
-      <!-- /fares cfg -->
-
-      <!-- ==================== RIGHT: FARES OUTPUT ==================== -->
-      <div class="cards" id="faresOutputArea">
-        <div class="placeholder" id="faresPh">
-          <div class="bi">✈️</div>
-          <p>
-            Sube el Excel de tarifas,<br />selecciona la campaña<br />y genera el HTML.<br /><br />
-            <span style="font-size:12px">
-              Se generan <strong>3 assets independientes</strong><br />
-              (ES · EN · PT) listos para AirTRFX.
-            </span>
-          </p>
-        </div>
-
-        <!-- Español -->
-        <div class="lang-card" id="faresCard-es" style="display:none">
-          <div class="lc-header">
-            <div class="lc-title">
-              <span class="flag">🇪🇸</span>
-              <span class="name">Español — AirTRFX asset</span>
-              <span class="meta" id="faresMeta-es"></span>
-            </div>
-            <div class="lc-actions">
-              <button class="btn-copy" id="cpFares-es" onclick="copyFares('es')">
-                📋 Copiar HTML
-              </button>
-            </div>
-          </div>
-          <div class="lc-body">
-            <textarea id="outFares-es" readonly style="height:300px;font-size:10px"></textarea>
-          </div>
-        </div>
-
-        <!-- English -->
-        <div class="lang-card" id="faresCard-en" style="display:none">
-          <div class="lc-header">
-            <div class="lc-title">
-              <span class="flag">🇺🇸</span>
-              <span class="name">English — AirTRFX asset</span>
-              <span class="meta" id="faresMeta-en"></span>
-            </div>
-            <div class="lc-actions">
-              <button class="btn-copy" id="cpFares-en" onclick="copyFares('en')">
-                📋 Copy HTML
-              </button>
-            </div>
-          </div>
-          <div class="lc-body">
-            <textarea id="outFares-en" readonly style="height:300px;font-size:10px"></textarea>
-          </div>
-        </div>
-
-        <!-- Português -->
-        <div class="lang-card" id="faresCard-pt" style="display:none">
-          <div class="lc-header">
-            <div class="lc-title">
-              <span class="flag">🇧🇷</span>
-              <span class="name">Português — AirTRFX asset</span>
-              <span class="meta" id="faresMeta-pt"></span>
-            </div>
-            <div class="lc-actions">
-              <button class="btn-copy" id="cpFares-pt" onclick="copyFares('pt')">
-                📋 Copiar HTML
-              </button>
-            </div>
-          </div>
-          <div class="lc-body">
-            <textarea id="outFares-pt" readonly style="height:300px;font-size:10px"></textarea>
-          </div>
-        </div>
-      </div>
-      <!-- /fares output -->
-
-    </div>
-    <!-- /fares layout -->
+      <!-- /fares layout -->
     </div>
     <!-- /tab-fares -->
+
+    <!-- ============================================================
+     TAB: DIRECTUS SYNC
+     ============================================================ -->
+    <div id="tab-directus" class="tab-panel hidden">
+      <div class="layout">
+        <!-- ==================== LEFT: CONFIG ==================== -->
+        <div class="cfg">
+          <div class="cfg-h"><h2>⚙️ Directus Sync</h2></div>
+          <div class="cfg-b">
+            <!-- Step 1: Excel -->
+            <div class="step">
+              <div class="slbl">
+                <div class="sn">1</div>
+                <span>Excel de Tarifas</span>
+              </div>
+              <div
+                class="upload"
+                id="dxuz"
+                onclick="document.getElementById('dxfi').click()"
+              >
+                <div class="icon">📊</div>
+                <p>Clic o arrastra el archivo</p>
+                <p style="font-size: 10px; color: #9ca3af; margin-top: 2px">
+                  Sheet 1: Tarifas · Sheet 2: Tasas de cambio
+                </p>
+                <div class="fname" id="dxfname"></div>
+              </div>
+              <input
+                type="file"
+                id="dxfi"
+                accept=".xlsx,.xls"
+                onchange="handleDirectusFile(event)"
+              />
+              <div id="dxFileStatus"></div>
+            </div>
+
+            <div class="div"></div>
+
+            <!-- Step 2: Campaign -->
+            <div class="step">
+              <div class="slbl">
+                <div class="sn">2</div>
+                <span>Campaña</span>
+              </div>
+              <label>Nombre del campaign</label>
+              <input
+                type="text"
+                id="dxCampaign"
+                placeholder="ej: viajaMejorApr"
+              />
+              <p class="hint">
+                Borra y reemplaza los fares de este campaign en Directus
+              </p>
+            </div>
+
+            <!-- Rates preview -->
+            <div id="dxRatesSec" style="display: none">
+              <div class="div"></div>
+              <p
+                style="
+                  font-size: 11px;
+                  font-weight: 600;
+                  color: #374151;
+                  margin-bottom: 5px;
+                "
+              >
+                💱 Tasas del Sheet 2
+                <span
+                  id="dxRatesNote"
+                  style="font-size: 10px; font-weight: 400; color: #9ca3af"
+                ></span>
+              </p>
+              <div class="rates-grid" id="dxRatesList"></div>
+              <p class="hint" style="margin-top: 5px">
+                Se subirán a <code>currency_conversion_rate</code>
+              </p>
+            </div>
+
+            <div class="div"></div>
+
+            <!-- Sync CTA -->
+            <button
+              class="btn-gen btn-gen-purple"
+              id="dxSyncBtn"
+              onclick="syncToDirectus()"
+              disabled
+            >
+              ☁️ Sync &amp; Generar HTML
+            </button>
+
+            <!-- Progress tracker -->
+            <div id="dxProgress" style="display: none; margin-top: 14px">
+              <div id="dxStep1" class="dx-step">Subiendo tarifas a Directus...</div>
+              <div id="dxStep2" class="dx-step">Subiendo tasas de cambio...</div>
+              <div id="dxStep3" class="dx-step">Consultando Directus con relaciones...</div>
+              <div id="dxStep4" class="dx-step">Generando HTML...</div>
+            </div>
+          </div>
+        </div>
+        <!-- /cfg -->
+
+        <!-- ==================== RIGHT: TABLE → HTML OUTPUT ==================== -->
+        <div class="cards" id="dxOutputArea" style="min-width: 0">
+          <!-- Placeholder -->
+          <div class="placeholder" id="dxPh">
+            <div class="bi">☁️</div>
+            <p>
+              Sube el Excel y revisa/edita las tarifas<br />
+              antes de sincronizar con Directus.<br /><br />
+              <span style="font-size: 12px">
+                El HTML final usará nombres e imágenes<br />
+                <strong>reales del collection destination</strong>.
+              </span>
+            </p>
+          </div>
+
+          <!-- Editable table (shown after file load) -->
+          <div id="dxTableCard" class="dx-table-card" style="display: none">
+            <div class="dx-table-header">
+              <div>
+                <strong id="dxTableTitle">Tarifas cargadas</strong>
+                <span
+                  id="dxTableMeta"
+                  style="font-size: 11px; color: #9ca3af; margin-left: 8px"
+                ></span>
+              </div>
+              <button class="btn-add-row" onclick="addFareRow()">+ Fila</button>
+            </div>
+            <div class="dx-table-wrap">
+              <table class="dx-table">
+                <thead>
+                  <tr>
+                    <th style="width: 30px"></th>
+                    <th>Status</th>
+                    <th>Campaign</th>
+                    <th>Origin</th>
+                    <th>Destination</th>
+                    <th>Price Before</th>
+                    <th>Price</th>
+                    <th>Departure</th>
+                    <th>Return</th>
+                    <th>Taxes</th>
+                  </tr>
+                </thead>
+                <tbody id="dxTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- HTML output cards ES / EN / PT (shown after sync) -->
+          <div id="dxHtmlCards" style="display: none">
+            <div class="lang-card" id="dxCard-es" style="display: none">
+              <div class="lc-header">
+                <div class="lc-title">
+                  <span class="flag">🇪🇸</span>
+                  <span class="name">Español — AirTRFX asset</span>
+                  <span class="meta" id="dxMeta-es"></span>
+                </div>
+                <div class="lc-actions">
+                  <button class="btn-copy" onclick="copyDirectusLang('es')">
+                    📋 Copiar HTML
+                  </button>
+                </div>
+              </div>
+              <div class="lc-body">
+                <textarea
+                  id="dxOut-es"
+                  readonly
+                  style="height: 280px; font-size: 10px"
+                ></textarea>
+              </div>
+            </div>
+
+            <div class="lang-card" id="dxCard-en" style="display: none">
+              <div class="lc-header">
+                <div class="lc-title">
+                  <span class="flag">🇺🇸</span>
+                  <span class="name">English — AirTRFX asset</span>
+                  <span class="meta" id="dxMeta-en"></span>
+                </div>
+                <div class="lc-actions">
+                  <button class="btn-copy" onclick="copyDirectusLang('en')">
+                    📋 Copy HTML
+                  </button>
+                </div>
+              </div>
+              <div class="lc-body">
+                <textarea
+                  id="dxOut-en"
+                  readonly
+                  style="height: 280px; font-size: 10px"
+                ></textarea>
+              </div>
+            </div>
+
+            <div class="lang-card" id="dxCard-pt" style="display: none">
+              <div class="lc-header">
+                <div class="lc-title">
+                  <span class="flag">🇧🇷</span>
+                  <span class="name">Português — AirTRFX asset</span>
+                  <span class="meta" id="dxMeta-pt"></span>
+                </div>
+                <div class="lc-actions">
+                  <button class="btn-copy" onclick="copyDirectusLang('pt')">
+                    📋 Copiar HTML
+                  </button>
+                </div>
+              </div>
+              <div class="lc-body">
+                <textarea
+                  id="dxOut-pt"
+                  readonly
+                  style="height: 280px; font-size: 10px"
+                ></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- /output -->
+      </div>
+    </div>
+    <!-- /tab-directus -->
+
+    <!-- ============================================================
+     TAB: TC CONVERTER
+     ============================================================ -->
+    <div id="tab-converter" class="tab-panel hidden">
+      <div class="layout">
+        <!-- ==================== LEFT: CONFIG ==================== -->
+        <div class="cfg">
+          <div class="cfg-h"><h2>⚙️ Configuración</h2></div>
+          <div class="cfg-b">
+            <!-- Step 1: Content -->
+            <div class="step">
+              <div class="slbl">
+                <div class="sn">1</div>
+                <span>Contenido del T&amp;C</span>
+              </div>
+              <div
+                class="upload"
+                id="cvuz"
+                onclick="document.getElementById('cvfi').click()"
+              >
+                <div class="icon">📄</div>
+                <p>Clic o arrastra un archivo DOCX o TXT</p>
+                <p style="font-size: 10px; color: #9ca3af; margin-top: 2px">
+                  Los encabezados del DOCX se detectan automáticamente
+                </p>
+                <div class="fname" id="cvfname"></div>
+              </div>
+              <input
+                type="file"
+                id="cvfi"
+                accept=".docx,.txt"
+                onchange="handleConverterFile(event)"
+              />
+              <div class="cv-sep">— o pega el texto directamente —</div>
+              <textarea
+                id="cvText"
+                class="cv-text"
+                placeholder="Pega aquí el texto completo del T&C...&#10;&#10;Tip: las líneas cortas en mayúsculas se detectan como títulos. Para texto pegado, separa los párrafos con línea en blanco."
+              ></textarea>
+              <div id="cvStatus"></div>
+            </div>
+
+            <div class="div"></div>
+
+            <!-- Step 2: ID -->
+            <div class="step">
+              <div class="slbl">
+                <div class="sn">2</div>
+                <span>ID del bloque</span>
+              </div>
+              <label>ID del div (anchor)</label>
+              <input type="text" id="cvDivId" placeholder="ej: domCUN" />
+              <p class="hint">
+                Será el <code>id=""</code> del contenedor HTML generado
+              </p>
+            </div>
+
+            <div class="div"></div>
+
+            <button class="btn-gen" id="cvGenBtn" onclick="convertTCToHTML()">
+              ✨ Convertir a HTML
+            </button>
+          </div>
+        </div>
+        <!-- /cfg -->
+
+        <!-- ==================== RIGHT: OUTPUT ==================== -->
+        <div class="cards" id="cvOutputArea">
+          <div class="placeholder" id="cvPh">
+            <div class="bi">📝</div>
+            <p>
+              Sube un DOCX o pega el texto<br />
+              de los T&amp;C, indica el ID<br />
+              y haz clic en <strong>Convertir a HTML</strong>.<br /><br />
+              <span style="font-size: 12px">
+                El contenido se convertirá al formato<br />
+                <strong>AirTRFX</strong> con la estructura de Copa.
+              </span>
+            </p>
+          </div>
+
+          <div class="lang-card" id="cvCard" style="display: none">
+            <div class="lc-header">
+              <div class="lc-title">
+                <span class="flag">📄</span>
+                <span class="name">HTML Convertido</span>
+                <span class="meta" id="cvMeta"></span>
+              </div>
+              <div class="lc-actions">
+                <button
+                  class="btn-copy"
+                  id="cvCopyBtn"
+                  onclick="copyConverted()"
+                >
+                  📋 Copiar HTML
+                </button>
+              </div>
+            </div>
+            <div class="lc-body">
+              <textarea id="cvOut" readonly style="height: 520px"></textarea>
+            </div>
+          </div>
+        </div>
+        <!-- /output -->
+      </div>
+      <!-- /layout -->
+    </div>
+    <!-- /tab-converter -->
 
     <footer class="footer">
       <img
