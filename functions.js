@@ -1764,71 +1764,85 @@ function blocksToAirTRFX(blocks, divId) {
 }
 
 // ================================================================
-// TC CONVERTER — TRANSLATION HELPERS
+// TC CONVERTER — TRANSLATION HELPERS  (Google Translate unofficial)
 // ================================================================
 function cvSleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-function cvSplitIntoParts(text, maxLen) {
-  const parts = [];
-  let rem = text;
-  while (rem.length > maxLen) {
-    let cut = rem.lastIndexOf('. ', maxLen);
-    if (cut === -1) cut = rem.lastIndexOf(' ', maxLen);
-    if (cut === -1) cut = maxLen;
-    parts.push(rem.slice(0, cut + 1).trim());
-    rem = rem.slice(cut + 1).trim();
-  }
-  if (rem) parts.push(rem);
-  return parts;
-}
+// Unique separator that Google Translate preserves (looks like a placeholder)
+const CV_SEP = ' \u2060[|]\u2060 ';
+const CV_BATCH_MAX = 1800; // chars per request — well within Google's limit
 
-async function cvTranslateText(text, langpair) {
+async function cvGoogleTranslate(text, sl, tl) {
   if (!text.trim()) return text;
-  const MAX = 450;
-  if (text.length > MAX) {
-    const parts = cvSplitIntoParts(text, MAX);
-    const out = [];
-    for (const p of parts) {
-      out.push(await cvTranslateText(p, langpair));
-      await cvSleep(120);
-    }
-    return out.join(' ');
-  }
   try {
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langpair}`;
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
     const r = await fetch(url);
     if (!r.ok) return text;
     const data = await r.json();
-    if (data.responseStatus !== 200) return text;
-    return data.responseData.translatedText || text;
+    // data[0] = array of [translatedChunk, originalChunk, ...]
+    return data[0].map(chunk => chunk[0]).join('');
   } catch {
     return text;
   }
 }
 
 async function cvTranslateBlocks(blocks, langpair, onProgress) {
-  const total = blocks.reduce((n, b) => n + (b.type === 'ul' ? b.items.length : 1), 0);
+  const [sl, tl] = langpair.split('|');
+
+  // Flatten all translatable strings with their block/item index
+  const entries = []; // { blockIdx, itemIdx (or null), str }
+  blocks.forEach((block, bi) => {
+    if (block.type === 'ul') {
+      block.items.forEach((item, ii) => entries.push({ bi, ii, str: item }));
+    } else if (block.text) {
+      entries.push({ bi, ii: null, str: block.text });
+    }
+  });
+
+  // Group entries into batches that fit within CV_BATCH_MAX chars
+  const batches = [];
+  let batch = [];
+  let batchLen = 0;
+  for (const entry of entries) {
+    const addLen = entry.str.length + CV_SEP.length;
+    if (batchLen + addLen > CV_BATCH_MAX && batch.length > 0) {
+      batches.push(batch);
+      batch = [entry];
+      batchLen = entry.str.length;
+    } else {
+      batch.push(entry);
+      batchLen += addLen;
+    }
+  }
+  if (batch.length) batches.push(batch);
+
+  // Translate batch by batch
+  const translated = {}; // key: `${bi}-${ii ?? 'p'}` → translated string
   let done = 0;
-  const out = [];
-  for (const block of blocks) {
+  for (const b of batches) {
+    const combined = b.map(e => e.str).join(CV_SEP);
+    const result = await cvGoogleTranslate(combined, sl, tl);
+    // Split result back — Google may slightly alter the separator spacing
+    const parts = result.split(/\s*\[?\|?\]\s*|\u2060/g).map(s => s.trim()).filter(s => s.length > 0);
+    b.forEach((entry, i) => {
+      const key = `${entry.bi}-${entry.ii ?? 'p'}`;
+      translated[key] = parts[i] || entry.str;
+    });
+    done += b.length;
+    if (onProgress) onProgress(done, entries.length);
+    await cvSleep(350);
+  }
+
+  // Reconstruct blocks with translated text
+  return blocks.map((block, bi) => {
     const tb = { ...block };
     if (block.type === 'ul') {
-      tb.items = [];
-      for (const item of block.items) {
-        tb.items.push(await cvTranslateText(item, langpair));
-        done++;
-        if (onProgress) onProgress(done, total);
-        await cvSleep(120);
-      }
+      tb.items = block.items.map((item, ii) => translated[`${bi}-${ii}`] || item);
     } else if (block.text) {
-      tb.text = await cvTranslateText(block.text, langpair);
-      done++;
-      if (onProgress) onProgress(done, total);
-      await cvSleep(120);
+      tb.text = translated[`${bi}-p`] || block.text;
     }
-    out.push(tb);
-  }
-  return out;
+    return tb;
+  });
 }
 
 // ================================================================
@@ -1876,7 +1890,7 @@ async function convertTCToHTML() {
     const totalBlocks = blocks.reduce((n, b) => n + (b.type === 'ul' ? b.items.length : 1), 0);
     setConverterStatus(`Traduciendo EN-US… 0 / ${totalBlocks}`, 'i');
     btn.textContent = '⏳ Traduciendo EN…';
-    const blocksEn = await cvTranslateBlocks(blocks, 'es-ES|en-US', (done, total) => {
+    const blocksEn = await cvTranslateBlocks(blocks, 'es|en-US', (done, total) => {
       setConverterStatus(`Traduciendo EN-US… ${done} / ${total}`, 'i');
     });
     cvSetCard('en', blocksToAirTRFX(blocksEn, divId), blocksEn);
@@ -1884,14 +1898,16 @@ async function convertTCToHTML() {
     // PT
     setConverterStatus(`Traduciendo PT-BR… 0 / ${totalBlocks}`, 'i');
     btn.textContent = '⏳ Traduciendo PT…';
-    const blocksPt = await cvTranslateBlocks(blocks, 'es-ES|pt-BR', (done, total) => {
+    const blocksPt = await cvTranslateBlocks(blocks, 'es|pt-BR', (done, total) => {
       setConverterStatus(`Traduciendo PT-BR… ${done} / ${total}`, 'i');
     });
     cvSetCard('pt', blocksToAirTRFX(blocksPt, divId), blocksPt);
 
     document.getElementById('cvPh').style.display = 'none';
-    document.getElementById('cvCards').style.display = 'block';
+    const cvCardsEl = document.getElementById('cvCards');
+    cvCardsEl.style.display = 'block';
     setConverterStatus('✓ HTML generado en ES · EN · PT', 's');
+    setTimeout(() => cvCardsEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
   } catch (err) {
     setConverterStatus('✗ Error en traducción: ' + err.message, 'e');
   } finally {
