@@ -772,7 +772,7 @@
             <div class="div"></div>
 
             <button class="btn-gen" id="cvGenBtn" onclick="convertTCToHTML()">
-              ✨ Convertir a HTML
+              ✨ Convertir y Traducir
             </button>
           </div>
         </div>
@@ -785,35 +785,69 @@
             <p>
               Sube un DOCX o pega el texto<br />
               de los T&amp;C, indica el ID<br />
-              y haz clic en <strong>Convertir a HTML</strong>.<br /><br />
+              y haz clic en <strong>Convertir y Traducir</strong>.<br /><br />
               <span style="font-size: 12px">
                 El contenido se convertirá al formato<br />
-                <strong>AirTRFX</strong> con la estructura de Copa.
+                <strong>AirTRFX</strong> y se traducirá a EN&#8209;US y PT&#8209;BR.
               </span>
             </p>
           </div>
 
-          <div class="lang-card" id="cvCard" style="display: none">
-            <div class="lc-header">
-              <div class="lc-title">
-                <span class="flag">📄</span>
-                <span class="name">HTML Convertido</span>
-                <span class="meta" id="cvMeta"></span>
+          <div id="cvCards" style="display:none">
+
+            <!-- ES -->
+            <div class="lang-card" id="cvCard-es">
+              <div class="lc-header">
+                <div class="lc-title">
+                  <span class="flag">🇵🇦</span>
+                  <span class="name">Español</span>
+                  <span class="meta" id="cvMeta-es"></span>
+                </div>
+                <div class="lc-actions">
+                  <button class="btn-copy" onclick="copyConverted('es')">📋 Copiar HTML</button>
+                </div>
               </div>
-              <div class="lc-actions">
-                <button
-                  class="btn-copy"
-                  id="cvCopyBtn"
-                  onclick="copyConverted()"
-                >
-                  📋 Copiar HTML
-                </button>
+              <div class="lc-body">
+                <textarea id="cvOut-es" readonly style="height:420px"></textarea>
               </div>
             </div>
-            <div class="lc-body">
-              <textarea id="cvOut" readonly style="height: 520px"></textarea>
+
+            <!-- EN -->
+            <div class="lang-card" id="cvCard-en" style="margin-top:16px">
+              <div class="lc-header">
+                <div class="lc-title">
+                  <span class="flag">🇺🇸</span>
+                  <span class="name">English</span>
+                  <span class="meta" id="cvMeta-en"></span>
+                </div>
+                <div class="lc-actions">
+                  <button class="btn-copy" onclick="copyConverted('en')">📋 Copiar HTML</button>
+                </div>
+              </div>
+              <div class="lc-body">
+                <textarea id="cvOut-en" readonly style="height:420px"></textarea>
+              </div>
             </div>
+
+            <!-- PT -->
+            <div class="lang-card" id="cvCard-pt" style="margin-top:16px">
+              <div class="lc-header">
+                <div class="lc-title">
+                  <span class="flag">🇧🇷</span>
+                  <span class="name">Português</span>
+                  <span class="meta" id="cvMeta-pt"></span>
+                </div>
+                <div class="lc-actions">
+                  <button class="btn-copy" onclick="copyConverted('pt')">📋 Copiar HTML</button>
+                </div>
+              </div>
+              <div class="lc-body">
+                <textarea id="cvOut-pt" readonly style="height:420px"></textarea>
+              </div>
+            </div>
+
           </div>
+          <!-- /cvCards -->
         </div>
         <!-- /output -->
       </div>

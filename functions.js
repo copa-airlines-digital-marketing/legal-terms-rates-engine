@@ -1764,9 +1764,86 @@ function blocksToAirTRFX(blocks, divId) {
 }
 
 // ================================================================
+// TC CONVERTER — TRANSLATION HELPERS
+// ================================================================
+function cvSleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function cvSplitIntoParts(text, maxLen) {
+  const parts = [];
+  let rem = text;
+  while (rem.length > maxLen) {
+    let cut = rem.lastIndexOf('. ', maxLen);
+    if (cut === -1) cut = rem.lastIndexOf(' ', maxLen);
+    if (cut === -1) cut = maxLen;
+    parts.push(rem.slice(0, cut + 1).trim());
+    rem = rem.slice(cut + 1).trim();
+  }
+  if (rem) parts.push(rem);
+  return parts;
+}
+
+async function cvTranslateText(text, langpair) {
+  if (!text.trim()) return text;
+  const MAX = 450;
+  if (text.length > MAX) {
+    const parts = cvSplitIntoParts(text, MAX);
+    const out = [];
+    for (const p of parts) {
+      out.push(await cvTranslateText(p, langpair));
+      await cvSleep(120);
+    }
+    return out.join(' ');
+  }
+  try {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langpair}`;
+    const r = await fetch(url);
+    if (!r.ok) return text;
+    const data = await r.json();
+    if (data.responseStatus !== 200) return text;
+    return data.responseData.translatedText || text;
+  } catch {
+    return text;
+  }
+}
+
+async function cvTranslateBlocks(blocks, langpair, onProgress) {
+  const total = blocks.reduce((n, b) => n + (b.type === 'ul' ? b.items.length : 1), 0);
+  let done = 0;
+  const out = [];
+  for (const block of blocks) {
+    const tb = { ...block };
+    if (block.type === 'ul') {
+      tb.items = [];
+      for (const item of block.items) {
+        tb.items.push(await cvTranslateText(item, langpair));
+        done++;
+        if (onProgress) onProgress(done, total);
+        await cvSleep(120);
+      }
+    } else if (block.text) {
+      tb.text = await cvTranslateText(block.text, langpair);
+      done++;
+      if (onProgress) onProgress(done, total);
+      await cvSleep(120);
+    }
+    out.push(tb);
+  }
+  return out;
+}
+
+// ================================================================
 // TC CONVERTER — MAIN GENERATE
 // ================================================================
-function convertTCToHTML() {
+function cvSetCard(lang, html, blocks) {
+  const pCount = blocks.filter(b => b.type === 'p').length;
+  const hCount = blocks.filter(b => b.type === 'h2' || b.type === 'h3').length;
+  const lCount = blocks.filter(b => b.type === 'ul').reduce((a, b) => a + b.items.length, 0);
+  document.getElementById(`cvOut-${lang}`).value = html;
+  document.getElementById(`cvMeta-${lang}`).textContent =
+    `${html.length.toLocaleString()} car · ${hCount} títulos · ${pCount} párrafos · ${lCount} ítems`;
+}
+
+async function convertTCToHTML() {
   const divId = document.getElementById('cvDivId').value.trim();
   if (!divId) {
     alert('Ingresa el ID del bloque (anchor) antes de continuar.\nEjemplo: domCUN');
@@ -1786,29 +1863,56 @@ function convertTCToHTML() {
     return;
   }
 
-  const html = blocksToAirTRFX(blocks, divId);
+  const btn = document.getElementById('cvGenBtn');
+  btn.disabled = true;
 
-  document.getElementById('cvOut').value = html;
-  const pCount = blocks.filter(b => b.type === 'p').length;
-  const hCount = blocks.filter(b => b.type === 'h2' || b.type === 'h3').length;
-  const lCount = blocks.filter(b => b.type === 'ul').reduce((a, b) => a + b.items.length, 0);
-  document.getElementById('cvMeta').textContent =
-    `${html.length.toLocaleString()} car · ${hCount} títulos · ${pCount} párrafos · ${lCount} ítems`;
-  document.getElementById('cvPh').style.display = 'none';
-  document.getElementById('cvCard').style.display = 'block';
+  try {
+    // ES — original, no translation
+    setConverterStatus('Generando ES...', 'i');
+    const htmlEs = blocksToAirTRFX(blocks, divId);
+    cvSetCard('es', htmlEs, blocks);
+
+    // EN
+    const totalBlocks = blocks.reduce((n, b) => n + (b.type === 'ul' ? b.items.length : 1), 0);
+    setConverterStatus(`Traduciendo EN-US… 0 / ${totalBlocks}`, 'i');
+    btn.textContent = '⏳ Traduciendo EN…';
+    const blocksEn = await cvTranslateBlocks(blocks, 'es-ES|en-US', (done, total) => {
+      setConverterStatus(`Traduciendo EN-US… ${done} / ${total}`, 'i');
+    });
+    cvSetCard('en', blocksToAirTRFX(blocksEn, divId), blocksEn);
+
+    // PT
+    setConverterStatus(`Traduciendo PT-BR… 0 / ${totalBlocks}`, 'i');
+    btn.textContent = '⏳ Traduciendo PT…';
+    const blocksPt = await cvTranslateBlocks(blocks, 'es-ES|pt-BR', (done, total) => {
+      setConverterStatus(`Traduciendo PT-BR… ${done} / ${total}`, 'i');
+    });
+    cvSetCard('pt', blocksToAirTRFX(blocksPt, divId), blocksPt);
+
+    document.getElementById('cvPh').style.display = 'none';
+    document.getElementById('cvCards').style.display = 'block';
+    setConverterStatus('✓ HTML generado en ES · EN · PT', 's');
+  } catch (err) {
+    setConverterStatus('✗ Error en traducción: ' + err.message, 'e');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ Convertir y Traducir';
+  }
 }
 
 // ================================================================
 // TC CONVERTER — COPY & STATUS
 // ================================================================
-function copyConverted() {
-  const ta = document.getElementById('cvOut');
-  const btn = document.getElementById('cvCopyBtn');
+function copyConverted(lang) {
+  const ta = document.getElementById(`cvOut-${lang}`);
   navigator.clipboard.writeText(ta.value).then(() => {
-    const orig = btn.textContent;
-    btn.textContent = '✓ Copiado!';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
+    const btns = document.querySelectorAll(`#cvCard-${lang} .btn-copy`);
+    btns.forEach(btn => {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Copiado!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
+    });
   });
 }
 
