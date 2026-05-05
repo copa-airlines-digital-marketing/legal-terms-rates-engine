@@ -1768,81 +1768,49 @@ function blocksToAirTRFX(blocks, divId) {
 // ================================================================
 function cvSleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// Unique separator that Google Translate preserves (looks like a placeholder)
-const CV_SEP = ' \u2060[|]\u2060 ';
-const CV_BATCH_MAX = 1800; // chars per request — well within Google's limit
-
 async function cvGoogleTranslate(text, sl, tl) {
-  if (!text.trim()) return text;
+  if (!text || !text.trim()) return text;
   try {
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
     const r = await fetch(url);
     if (!r.ok) return text;
     const data = await r.json();
-    // data[0] = array of [translatedChunk, originalChunk, ...]
-    return data[0].map(chunk => chunk[0]).join('');
+    if (!Array.isArray(data) || !Array.isArray(data[0])) return text;
+    return data[0].map(chunk => (chunk && chunk[0]) || '').join('') || text;
   } catch {
     return text;
   }
 }
 
-async function cvTranslateBlocks(blocks, langpair, onProgress) {
-  const [sl, tl] = langpair.split('|');
-
-  // Flatten all translatable strings with their block/item index
-  const entries = []; // { blockIdx, itemIdx (or null), str }
-  blocks.forEach((block, bi) => {
-    if (block.type === 'ul') {
-      block.items.forEach((item, ii) => entries.push({ bi, ii, str: item }));
-    } else if (block.text) {
-      entries.push({ bi, ii: null, str: block.text });
-    }
-  });
-
-  // Group entries into batches that fit within CV_BATCH_MAX chars
-  const batches = [];
-  let batch = [];
-  let batchLen = 0;
-  for (const entry of entries) {
-    const addLen = entry.str.length + CV_SEP.length;
-    if (batchLen + addLen > CV_BATCH_MAX && batch.length > 0) {
-      batches.push(batch);
-      batch = [entry];
-      batchLen = entry.str.length;
-    } else {
-      batch.push(entry);
-      batchLen += addLen;
-    }
-  }
-  if (batch.length) batches.push(batch);
-
-  // Translate batch by batch
-  const translated = {}; // key: `${bi}-${ii ?? 'p'}` → translated string
+// Translate blocks one-by-one. Calls onProgress(done, total) after each.
+async function cvTranslateBlocks(blocks, sl, tl, onProgress) {
+  // Count total translatable units
+  const total = blocks.reduce((n, b) => {
+    if (b.type === 'ul') return n + b.items.length;
+    return b.text ? n + 1 : n;
+  }, 0);
   let done = 0;
-  for (const b of batches) {
-    const combined = b.map(e => e.str).join(CV_SEP);
-    const result = await cvGoogleTranslate(combined, sl, tl);
-    // Split result back — Google may slightly alter the separator spacing
-    const parts = result.split(/\s*\[?\|?\]\s*|\u2060/g).map(s => s.trim()).filter(s => s.length > 0);
-    b.forEach((entry, i) => {
-      const key = `${entry.bi}-${entry.ii ?? 'p'}`;
-      translated[key] = parts[i] || entry.str;
-    });
-    done += b.length;
-    if (onProgress) onProgress(done, entries.length);
-    await cvSleep(350);
-  }
 
-  // Reconstruct blocks with translated text
-  return blocks.map((block, bi) => {
+  const out = [];
+  for (const block of blocks) {
     const tb = { ...block };
     if (block.type === 'ul') {
-      tb.items = block.items.map((item, ii) => translated[`${bi}-${ii}`] || item);
+      tb.items = [];
+      for (const item of block.items) {
+        tb.items.push(await cvGoogleTranslate(item, sl, tl));
+        done++;
+        if (onProgress) onProgress(done, total);
+        await cvSleep(300);
+      }
     } else if (block.text) {
-      tb.text = translated[`${bi}-p`] || block.text;
+      tb.text = await cvGoogleTranslate(block.text, sl, tl);
+      done++;
+      if (onProgress) onProgress(done, total);
+      await cvSleep(300);
     }
-    return tb;
-  });
+    out.push(tb);
+  }
+  return out;
 }
 
 // ================================================================
@@ -1855,6 +1823,7 @@ function cvSetCard(lang, html, blocks) {
   document.getElementById(`cvOut-${lang}`).value = html;
   document.getElementById(`cvMeta-${lang}`).textContent =
     `${html.length.toLocaleString()} car · ${hCount} títulos · ${pCount} párrafos · ${lCount} ítems`;
+  document.getElementById(`cvCard-${lang}`).classList.add('visible');
 }
 
 async function convertTCToHTML() {
@@ -1865,13 +1834,13 @@ async function convertTCToHTML() {
     return;
   }
 
-  const text = document.getElementById('cvText').value.trim();
-  if (!text) {
+  const rawText = document.getElementById('cvText').value.trim();
+  if (!rawText) {
     alert('Sube un archivo o pega el texto de los T&C antes de convertir.');
     return;
   }
 
-  const blocks = parseTextToBlocks(text);
+  const blocks = parseTextToBlocks(rawText);
   if (!blocks.length) {
     alert('No se encontró contenido para convertir.');
     return;
@@ -1880,40 +1849,41 @@ async function convertTCToHTML() {
   const btn = document.getElementById('cvGenBtn');
   btn.disabled = true;
 
-  try {
-    // ES — original, no translation
-    setConverterStatus('Generando ES...', 'i');
-    const htmlEs = blocksToAirTRFX(blocks, divId);
-    cvSetCard('es', htmlEs, blocks);
+  // ── ES: show immediately, no translation needed ──────────────
+  const htmlEs = blocksToAirTRFX(blocks, divId);
+  cvSetCard('es', htmlEs, blocks);
 
-    // EN
-    const totalBlocks = blocks.reduce((n, b) => n + (b.type === 'ul' ? b.items.length : 1), 0);
-    setConverterStatus(`Traduciendo EN-US… 0 / ${totalBlocks}`, 'i');
+  // Show ES card and hide placeholder — EN/PT will appear as they finish
+  document.getElementById('cvPh').style.display = 'none';
+  setTimeout(() => document.getElementById('cvCard-es').scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+
+  // ── EN ────────────────────────────────────────────────────────
+  try {
+    setConverterStatus('Traduciendo EN-US…', 'i');
     btn.textContent = '⏳ Traduciendo EN…';
-    const blocksEn = await cvTranslateBlocks(blocks, 'es|en-US', (done, total) => {
+    const blocksEn = await cvTranslateBlocks(blocks, 'es', 'en-US', (done, total) => {
       setConverterStatus(`Traduciendo EN-US… ${done} / ${total}`, 'i');
     });
     cvSetCard('en', blocksToAirTRFX(blocksEn, divId), blocksEn);
+  } catch (err) {
+    document.getElementById('cvOut-en').value = '⚠ Error al traducir EN: ' + err.message;
+  }
 
-    // PT
-    setConverterStatus(`Traduciendo PT-BR… 0 / ${totalBlocks}`, 'i');
+  // ── PT ────────────────────────────────────────────────────────
+  try {
+    setConverterStatus('Traduciendo PT-BR…', 'i');
     btn.textContent = '⏳ Traduciendo PT…';
-    const blocksPt = await cvTranslateBlocks(blocks, 'es|pt-BR', (done, total) => {
+    const blocksPt = await cvTranslateBlocks(blocks, 'es', 'pt-BR', (done, total) => {
       setConverterStatus(`Traduciendo PT-BR… ${done} / ${total}`, 'i');
     });
     cvSetCard('pt', blocksToAirTRFX(blocksPt, divId), blocksPt);
-
-    document.getElementById('cvPh').style.display = 'none';
-    const cvCardsEl = document.getElementById('cvCards');
-    cvCardsEl.style.display = 'block';
-    setConverterStatus('✓ HTML generado en ES · EN · PT', 's');
-    setTimeout(() => cvCardsEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
   } catch (err) {
-    setConverterStatus('✗ Error en traducción: ' + err.message, 'e');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '✨ Convertir y Traducir';
+    document.getElementById('cvOut-pt').value = '⚠ Error al traducir PT: ' + err.message;
   }
+
+  setConverterStatus('✓ HTML generado en ES · EN · PT', 's');
+  btn.disabled = false;
+  btn.textContent = '✨ Convertir y Traducir';
 }
 
 // ================================================================
