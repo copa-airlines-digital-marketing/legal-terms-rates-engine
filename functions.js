@@ -213,23 +213,36 @@ function processFares(rows) {
     }
     return null;
   };
-  // Column positions: C(2)=ORI D(3)=DES X(23)=fp Y(24)=lp Z(25)=ff AA(26)=ignored AB(27)=lf
-  const cOri = keys[2] ?? fc('ORI', 'Origin');
-  const cDes = keys[3] ?? fc('DES', 'Dest');
-  const cFP  = keys[23] ?? fc('PrimeraFechaCompra', 'StartDate');
-  const cLP  = keys[24] ?? fc('UltimaFechaCompra', 'LastPurchase');
-  const cFF  = keys[25] ?? fc('PrimeraFechaInicio', 'FirstFlight');
-  const cLF  = keys[27] ?? fc('UltimaFechaVuelo', 'LastFlight');
+  // Use regex-based detection for date columns (positional indices shift between Excel versions)
+  const rfind = re => keys.find(k => re.test(k));
+  const cOri = fc('ORI (ATO)', 'ORI (ATD)', 'ORI', 'Origin');
+  const cDes = fc('DES (ATO)', 'DES (ATD)', 'DES', 'Dest');
+  const cFP  = rfind(/primera.*fecha.*compra/i)  || rfind(/first.*purchase/i)  || keys[23];
+  const cLP  = rfind(/ultima.*fecha.*compra/i)   || rfind(/last.*purchase/i)   || keys[24];
+  const cFF  = rfind(/primera.*fecha.*inicio/i)  || rfind(/first.*flight/i)    || keys[25];
+  const cLF  = keys.find(k => /ultima.*fecha.*vuelo/i.test(k) && !/inicio/i.test(k))
+             || rfind(/last.*flight/i) || keys[27];
   const cSt  = fc('Sillas', 'Seats', 'Available');
-  const cAdv = fc('Advance', 'AdvPurch', 'ADVANCE');
-  const cBOS = fc('BLACKOUT', 'BlackoutStart', 'Blackout Start');
-  const cBOE = fc('BLACKOUT FIN', 'BlackoutEnd');
+  const cAdv = fc('ADVANCED PURCHASE', 'Advance', 'AdvPurch');
+  // Blackout: may be a single combined column "23JUL-07AUG" or two separate columns
+  const cBO  = fc('BLACKOUT');                              // single combined column
+  const cBOS = fc('BlackoutStart', 'Blackout Start', 'BLACKOUT START');
+  const cBOE = fc('BlackoutEnd',   'Blackout End',   'BLACKOUT FIN');
 
   const seen = new Set();
   allFares = rows.filter(r => r[cOri] && r[cDes]).reduce((acc, r) => {
     const k = `${String(r[cOri]).trim().toUpperCase()}-${String(r[cDes]).trim().toUpperCase()}`;
     if (seen.has(k)) return acc;
     seen.add(k);
+
+    let bos = null, boe = null;
+    if (cBO && r[cBO]) {
+      [bos, boe] = pBlackoutRange(r[cBO]);   // "23JUL-07AUG" format
+    } else {
+      bos = pDate(r[cBOS]);
+      boe = pDate(r[cBOE]);
+    }
+
     acc.push({
       ori: String(r[cOri] || '').trim().toUpperCase(),
       des: String(r[cDes] || '').trim().toUpperCase(),
@@ -237,7 +250,7 @@ function processFares(rows) {
       adv: r[cAdv] ? parseInt(r[cAdv]) : 7,
       fp: pDate(r[cFP]), lp: pDate(r[cLP]),
       ff: pDate(r[cFF]), lf: pDate(r[cLF]),
-      bos: pDate(r[cBOS]), boe: pDate(r[cBOE]),
+      bos, boe,
     });
     return acc;
   }, []);
@@ -594,6 +607,34 @@ function fmtD(ds, lang) {
   if (!ds) return '';
   const t = TR[lang], [y, m, d] = ds.split('-');
   return t.dateFmt(parseInt(d), t.months[parseInt(m) - 1], y);
+}
+
+// Parses combined blackout range "23JUL-07AUG" → ["2026-07-23", "2026-08-07"]
+function pBlackoutRange(val) {
+  if (!val) return [null, null];
+  const str = String(val).trim().toUpperCase();
+  const MON = {JAN:1,FEB:2,MAR:3,APR:4,MAY:5,JUN:6,JUL:7,AUG:8,SEP:9,OCT:10,NOV:11,DEC:12};
+  function parsePart(s) {
+    const m = s.trim().match(/^(\d{1,2})([A-Z]{3})$/);
+    if (!m) return null;
+    const day = parseInt(m[1]), mon = MON[m[2]];
+    if (!mon) return null;
+    const now = new Date();
+    let year = now.getFullYear();
+    // If that date already passed by more than 60 days, assume next year
+    if (new Date(year, mon - 1, day) < new Date(now.getTime() - 60 * 86400000)) year++;
+    return `${year}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  }
+  // Split on the dash between the two dates (e.g. "23JUL-07AUG")
+  const m = str.match(/^(\d{1,2}[A-Z]{3})-(\d{1,2}[A-Z]{3})$/);
+  if (!m) return [null, null];
+  let bos = parsePart(m[1]), boe = parsePart(m[2]);
+  // If end month is earlier than start month, end is next year
+  if (bos && boe && boe < bos) {
+    const [y, mo, d] = boe.split('-');
+    boe = `${parseInt(y) + 1}-${mo}-${d}`;
+  }
+  return [bos, boe];
 }
 
 function pDate(val) {
